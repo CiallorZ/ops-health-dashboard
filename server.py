@@ -19,10 +19,13 @@ from monitor import __version__
 from monitor.config import ConfigError, load_config
 from monitor.history import HistoryStore
 from monitor.runner import CheckRunnerService
+from toolbox.errors import ToolError
+from toolbox.registry import execute_tool, list_tools
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 DEFAULT_DASHBOARD = PROJECT_ROOT / "dashboard"
 STARTED_AT = time.monotonic()
+MAX_JSON_BODY_BYTES = 64 * 1024
 
 
 class DashboardServer(ThreadingHTTPServer):
@@ -42,7 +45,7 @@ class DashboardServer(ThreadingHTTPServer):
 
 class DashboardRequestHandler(BaseHTTPRequestHandler):
     server: DashboardServer
-    server_version = "OpsHealthDashboard/0.1"
+    server_version = "OpsHealthDashboard/0.2"
     sys_version = ""
 
     def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
@@ -80,6 +83,9 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/config":
             self._send_json(HTTPStatus.OK, self.server.runner.config.public_dict())
             return
+        if parsed.path == "/api/tools":
+            self._send_json(HTTPStatus.OK, {"tools": list_tools()})
+            return
         if parsed.path.startswith("/api/"):
             self._send_error(HTTPStatus.NOT_FOUND, "unknown API endpoint")
             return
@@ -89,6 +95,9 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/api/refresh":
             self._run_snapshot(force=True)
+            return
+        if parsed.path == "/api/tools/run":
+            self._run_tool()
             return
         self._send_error(HTTPStatus.NOT_FOUND, "unknown API endpoint")
 
@@ -109,6 +118,56 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             )
             return
         self._send_json(HTTPStatus.OK, snapshot)
+
+    def _run_tool(self) -> None:
+        content_type = self.headers.get("Content-Type", "").split(";", 1)[0].lower()
+        if content_type != "application/json":
+            self._send_error(
+                HTTPStatus.UNSUPPORTED_MEDIA_TYPE,
+                "Content-Type must be application/json",
+            )
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            length = -1
+        if length <= 0 or length > MAX_JSON_BODY_BYTES:
+            self._send_error(
+                HTTPStatus.REQUEST_ENTITY_TOO_LARGE
+                if length > MAX_JSON_BODY_BYTES
+                else HTTPStatus.BAD_REQUEST,
+                "request body must be between 1 and 65536 bytes",
+            )
+            return
+        try:
+            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._send_error(HTTPStatus.BAD_REQUEST, "request body must be valid JSON")
+            return
+        if not isinstance(payload, dict):
+            self._send_error(HTTPStatus.BAD_REQUEST, "request body must be an object")
+            return
+
+        tool_id = payload.get("tool")
+        inputs = payload.get("inputs")
+        if not isinstance(tool_id, str) or not tool_id.strip():
+            self._send_error(HTTPStatus.BAD_REQUEST, "tool must be a non-empty string")
+            return
+        try:
+            result = execute_tool(tool_id.strip(), inputs)
+        except ToolError as exc:
+            self._send_json(
+                HTTPStatus.BAD_REQUEST,
+                {"error": exc.public_dict(), "status": HTTPStatus.BAD_REQUEST.value},
+            )
+            return
+        except Exception as exc:  # Do not expose tracebacks or local details.
+            self._send_error(
+                HTTPStatus.INTERNAL_SERVER_ERROR,
+                f"tool failed: {type(exc).__name__}",
+            )
+            return
+        self._send_json(HTTPStatus.OK, {"tool": tool_id, "result": result})
 
     def _serve_static(self, path: str, *, head_only: bool = False) -> None:
         decoded = unquote(path)

@@ -107,6 +107,37 @@
           </article>
         </section>
 
+        <section class="toolbox-panel" aria-labelledby="toolbox-title">
+          <div class="toolbox-heading">
+            <div>
+              <p class="panel-kicker">LOCAL TOOLBOX</p>
+              <h2 id="toolbox-title">随身工具</h2>
+            </div>
+            <p class="toolbox-lede">离线计算，不读取系统秘密，不访问未授权资产。</p>
+          </div>
+
+          <div class="tool-tabs" role="tablist" aria-label="选择工具">
+            <button class="tool-tab is-active" type="button" role="tab" aria-selected="true" data-tool="json-format">JSON</button>
+            <button class="tool-tab" type="button" role="tab" aria-selected="false" data-tool="cidr">CIDR</button>
+            <button class="tool-tab" type="button" role="tab" aria-selected="false" data-tool="ip">IP</button>
+            <button class="tool-tab" type="button" role="tab" aria-selected="false" data-tool="hash">HASH</button>
+          </div>
+
+          <div class="tool-layout">
+            <form class="tool-form" id="tool-form" novalidate>
+              <div class="tool-fields" id="tool-fields"></div>
+              <div class="tool-actions">
+                <button class="tool-run" id="tool-run" type="submit">运行工具</button>
+                <span class="tool-local-note" id="tool-local-note">浏览器本地处理</span>
+              </div>
+            </form>
+            <div class="tool-output" id="tool-output" aria-live="polite">
+              <p class="tool-output-label">OUTPUT / 结果</p>
+              <p class="tool-output-empty">选择左侧工具开始。输出只存在于本页。</p>
+            </div>
+          </div>
+        </section>
+
         <div class="workspace-grid">
           <section class="panel checks-panel" aria-labelledby="checks-title">
             <div class="panel-heading">
@@ -172,7 +203,7 @@
       </main>
 
       <footer>
-        <span>SENTINEL <b>v0.1</b></span>
+        <span>SENTINEL <b>v0.2</b></span>
         <span>Zero-dependency / Python standard library</span>
         <span id="footer-state">本地数据 · 不采集凭据</span>
       </footer>

@@ -24,5 +24,9 @@ jobs:
       - name: Unit tests
         run: python -m unittest discover -s tests -v
       - name: Compile check
-        run: python -m compileall -q monitor server.py
+        run: python -m compileall -q monitor toolbox server.py tests
+      - name: JavaScript syntax check
+        run: node --check dashboard/app.js
+      - name: Diff hygiene
+        run: git diff --check
 
