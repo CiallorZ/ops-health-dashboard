@@ -2,11 +2,12 @@
 
 一个零依赖、默认只监听本机的运维健康看板。它把网络连通性、TCP 端口、TLS 证书和 HTTP 服务状态放在同一条实时时间线上，帮助你在用户投诉前发现异常。
 
-> 当前版本：`v0.1.0`。状态来自真实检测；失败就是失败，不做“演示模式”或伪造成功率。
+> 当前版本：`v0.2.0`。状态来自真实检测；失败就是失败，不做“演示模式”或伪造成功率。
 
 ## 功能
 
 - **四类检查**：ICMP ping、TCP 端口、TLS 证书有效期、HTTP 状态码与延迟。
+- **本地工具箱**：JSON 格式化、CIDR 计算、IP 分析、哈希/HMAC，统一错误与输入上限。
 - **可解释状态**：`ok` / `warn` / `fail`，并保留原始错误信息、延迟、状态码与证书到期时间。
 - **历史采样**：每次完整检测写入本地 `data/history.jsonl`，页面展示最近 32 次健康轨迹。
 - **有界超时**：每个检查独立超时，任一检查失败不会拖垮整个看板。
@@ -22,7 +23,7 @@
 python server.py
 ```
 
-浏览器打开 <http://127.0.0.1:8080>。默认每 30 秒拉取一次最新状态，点击右上角刷新按钮可立即重新采样。
+浏览器打开 <http://127.0.0.1:8080>。默认每 30 秒拉取一次最新状态，点击右上角刷新按钮可立即重新采样。页面中的“随身工具”无需额外服务：JSON 在浏览器本地处理，其余工具只在本机 API 内做确定性计算。
 
 修改 `checks.json` 后重启服务。所有资产都在这个文件里，不需要改代码。
 
@@ -114,8 +115,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\uninstall-autostart.
 | `GET` | `/api/status` | 获取缓存状态；`?force=1` 强制重新检测 |
 | `GET` | `/api/history?limit=40` | 读取历史摘要 |
 | `GET` | `/api/config` | 只读配置，不含任何秘密 |
+| `GET` | `/api/tools` | 工具目录与输入元数据 |
+| `POST` | `/api/tools/run` | 执行 allow-list 工具；请求体最多 64 KiB |
 
 `/api/status` 默认缓存 8 秒，避免浏览器多标签页同时制造重复请求。
+
+工具 API 只接受 `application/json`，输入会做类型和长度校验。`json-format` 明确只在浏览器本地执行，服务端会拒绝其内容；其余工具不访问外部网络，也不会执行任意命令。
 
 ## 测试
 
@@ -123,10 +128,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\uninstall-autostart.
 
 ```powershell
 python -m unittest discover -s tests -v
-python -m compileall -q monitor server.py
+python -m compileall -q monitor toolbox server.py tests
+node --check dashboard\app.js
+git diff --check
 ```
 
-CI 会在 Python 3.11 和 3.13 上执行同一套测试。测试覆盖配置拒绝路径、HTTP/TLS 边界、并发刷新去重、历史持久化和 HTTP 安全响应头。
+CI 会在 Python 3.11 和 3.13 上执行同一套测试，并检查 Python 编译、JavaScript 语法和差异空白。测试覆盖配置拒绝路径、HTTP/TLS 边界、并发刷新去重、历史持久化、HTTP 安全响应头及工具箱的校验/错误路径。
 
 ## Docker
 
@@ -147,10 +154,21 @@ docker compose up --build -d
 ## Roadmap
 
 - [x] `v0.1` 基线：四类检测、实时看板、历史、CI、Docker。
-- [ ] `v0.2` 可用性：多目标分组、单检查重试、延迟分布。
-- [ ] `v0.3` 告警：Webhook / 邮件事件，带去重与冷却。
-- [ ] `v0.4` 趋势：按天聚合、可用率与证书到期日历。
-- [ ] `v0.5` 多用户：只读分享、反向代理鉴权示例。
+- [x] `v0.2` 工具基础：JSON/CIDR/IP/HASH、注册表、统一错误、API/UI 测试。
+- [ ] `v0.3` 诊断与报告：本机网络摘要、DNS/路由诊断、可离线导出的报告。
+- [ ] `v0.4` 监控连续性：重试策略、分组资产、按天趋势、可选 Webhook 告警。
+- [ ] `v0.5` Windows 与自动化：系统/磁盘/进程摘要、受控计划任务视图、发布与备份说明。
+
+更细的验收标准和依赖关系见 [`ROADMAP.md`](ROADMAP.md)。
+
+## 文档
+
+- [`AGENTS.md`](AGENTS.md)：长期开发规则和质量门禁。
+- [`ROADMAP.md`](ROADMAP.md)：分阶段产品路线与验收标准。
+- [`CHANGELOG.md`](CHANGELOG.md)：版本变更记录。
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)：模块边界、数据流和扩展方式。
+- [`docs/SECURITY.md`](docs/SECURITY.md)：威胁模型和运行边界。
+- [`docs/TESTING.md`](docs/TESTING.md)：测试命令、范围和已知限制。
 
 ## License
 
