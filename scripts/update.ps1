@@ -59,5 +59,5 @@ if (-not $Python) {
     $Python = (Get-Command python -ErrorAction Stop).Source
 }
 Invoke-CommandSafely -Name $Python -Arguments @("-m", "unittest", "discover", "-s", "tests", "-v")
-Invoke-CommandSafely -Name $Python -Arguments @("-m", "compileall", "-q", "monitor", "server.py", "tests")
+Invoke-CommandSafely -Name $Python -Arguments @("-m", "compileall", "-q", "monitor", "toolbox", "server.py", "tests")
 Write-Log "update verified at $remoteHead"

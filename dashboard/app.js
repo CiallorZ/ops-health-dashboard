@@ -23,12 +23,18 @@ const elements = {
   thresholdTlsWarn: document.querySelector("#threshold-tls-warn"),
   thresholdTlsFail: document.querySelector("#threshold-tls-fail"),
   footerState: document.querySelector("#footer-state"),
+  toolForm: document.querySelector("#tool-form"),
+  toolFields: document.querySelector("#tool-fields"),
+  toolRun: document.querySelector("#tool-run"),
+  toolOutput: document.querySelector("#tool-output"),
+  toolLocalNote: document.querySelector("#tool-local-note"),
 };
 
 let activeFilter = "all";
 let latestStatus = null;
 let loading = false;
 let toastTimer = null;
+let activeTool = "json-format";
 
 const healthLabels = {
   healthy: "系统稳定",
@@ -43,6 +49,76 @@ const statusLabels = {
   warn: "预警",
   fail: "异常",
   unknown: "未知",
+};
+
+const toolDefinitions = {
+  "json-format": {
+    label: "JSON 格式化",
+    local: true,
+    fields: [
+      {
+        name: "text",
+        label: "JSON 文本",
+        type: "textarea",
+        placeholder: '{"service": "sentinel", "healthy": true}',
+      },
+    ],
+  },
+  cidr: {
+    label: "CIDR 计算",
+    local: false,
+    fields: [
+      {
+        name: "cidr",
+        label: "CIDR",
+        type: "text",
+        placeholder: "192.168.1.0/24",
+      },
+    ],
+  },
+  ip: {
+    label: "IP 分析",
+    local: false,
+    fields: [
+      {
+        name: "address",
+        label: "IP 地址",
+        type: "text",
+        placeholder: "192.168.1.1 或 2001:db8::1",
+      },
+    ],
+  },
+  hash: {
+    label: "哈希 / HMAC",
+    local: false,
+    fields: [
+      {
+        name: "text",
+        label: "文本",
+        type: "textarea",
+        placeholder: "输入需要计算摘要的文本",
+      },
+      {
+        name: "algorithm",
+        label: "算法",
+        type: "select",
+        options: ["sha256", "sha512", "sha384", "sha1", "md5"],
+      },
+      {
+        name: "encoding",
+        label: "编码",
+        type: "select",
+        options: ["utf-8", "gbk", "ascii"],
+      },
+      {
+        name: "key",
+        label: "HMAC 密钥（可选）",
+        type: "password",
+        placeholder: "留空则计算普通摘要",
+        required: false,
+      },
+    ],
+  },
 };
 
 function formatNumber(value) {
@@ -196,6 +272,112 @@ function renderConfig(config) {
   elements.thresholdTlsFail.textContent = `${formatNumber(thresholds.tls_fail_days)} 天`;
 }
 
+function inputMarkup(field) {
+  const placeholder = field.placeholder
+    ? ` placeholder="${escapeHtml(field.placeholder)}"`
+    : "";
+  const required = field.required === false ? "" : " required";
+  if (field.type === "textarea") {
+    return `<textarea id="tool-${escapeHtml(field.name)}" name="${escapeHtml(field.name)}"${placeholder}${required}></textarea>`;
+  }
+  if (field.type === "select") {
+    const options = field.options
+      .map((option) => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`)
+      .join("");
+    return `<select id="tool-${escapeHtml(field.name)}" name="${escapeHtml(field.name)}">${options}</select>`;
+  }
+  return `<input id="tool-${escapeHtml(field.name)}" name="${escapeHtml(field.name)}" type="${escapeHtml(field.type)}"${placeholder} autocomplete="off"${required}>`;
+}
+
+function renderToolForm() {
+  const definition = toolDefinitions[activeTool];
+  elements.toolFields.innerHTML = definition.fields.map((field) => `
+    <div class="tool-field">
+      <label for="tool-${escapeHtml(field.name)}">${escapeHtml(field.label)}</label>
+      ${inputMarkup(field)}
+    </div>
+  `).join("");
+  elements.toolLocalNote.textContent = definition.local
+    ? "浏览器本地处理 · 不发送"
+    : "仅在本机服务执行 · 不上传外部";
+  elements.toolOutput.innerHTML = `
+    <p class="tool-output-label">OUTPUT / 结果</p>
+    <p class="tool-output-empty">填写参数后点击“运行工具”。</p>
+  `;
+}
+
+function formatJsonLocally(text) {
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    throw new Error(`JSON 无效：${error.message}`);
+  }
+  return {
+    valid: true,
+    formatted: JSON.stringify(parsed, null, 2),
+  };
+}
+
+function renderToolResult(result) {
+  if (result.formatted) {
+    elements.toolOutput.innerHTML = `
+      <p class="tool-output-label">OUTPUT / 已格式化</p>
+      <pre class="tool-json">${escapeHtml(result.formatted)}</pre>
+    `;
+    return;
+  }
+  const rows = Object.entries(result)
+    .map(([key, value]) => {
+      const isGood = value === true && /^(is_|valid)/.test(key);
+      return `<div><dt>${escapeHtml(key)}</dt><dd class="${isGood ? "is-good" : ""}">${escapeHtml(String(value))}</dd></div>`;
+    })
+    .join("");
+  elements.toolOutput.innerHTML = `
+    <p class="tool-output-label">OUTPUT / 结果</p>
+    <dl class="tool-result">${rows}</dl>
+  `;
+}
+
+function renderToolError(message) {
+  elements.toolOutput.innerHTML = `
+    <p class="tool-output-label">OUTPUT / 错误</p>
+    <p class="tool-output-error">${escapeHtml(message)}</p>
+  `;
+}
+
+async function runTool() {
+  const data = new FormData(elements.toolForm);
+  const inputs = Object.fromEntries(data.entries());
+  elements.toolRun.disabled = true;
+  try {
+    if (!String(inputs.text ?? inputs.cidr ?? inputs.address ?? "").trim()) {
+      throw new Error("请先填写输入内容");
+    }
+    if (activeTool === "json-format") {
+      renderToolResult(formatJsonLocally(inputs.text));
+      return;
+    }
+    const response = await fetch("/api/tools/run", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ tool: activeTool, inputs }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.error?.message || `工具调用失败：HTTP ${response.status}`);
+    }
+    renderToolResult(payload.result);
+  } catch (error) {
+    renderToolError(error.message);
+  } finally {
+    elements.toolRun.disabled = false;
+  }
+}
+
 async function fetchJson(path, options) {
   const response = await fetch(path, {
     ...options,
@@ -250,7 +432,25 @@ document.querySelectorAll(".filter").forEach((button) => {
 
 elements.refreshButton.addEventListener("click", () => loadStatus({ force: true }));
 
+document.querySelectorAll(".tool-tab").forEach((button) => {
+  button.addEventListener("click", () => {
+    activeTool = button.dataset.tool ?? "json-format";
+    document.querySelectorAll(".tool-tab").forEach((item) => {
+      const selected = item === button;
+      item.classList.toggle("is-active", selected);
+      item.setAttribute("aria-selected", String(selected));
+    });
+    renderToolForm();
+  });
+});
+
+elements.toolForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  runTool();
+});
+
 loadConfig();
 loadStatus();
+renderToolForm();
 window.setInterval(() => loadStatus(), REFRESH_MS);
 

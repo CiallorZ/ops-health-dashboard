@@ -6,6 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 COPY checks.json server.py ./
 COPY monitor ./monitor
+COPY toolbox ./toolbox
 COPY dashboard ./dashboard
 
 RUN mkdir -p /app/data && useradd --create-home --uid 10001 dashboard \

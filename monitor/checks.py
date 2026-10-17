@@ -243,7 +243,7 @@ def _run_http(check: CheckConfig, thresholds: Thresholds) -> CheckResult:
     request = urllib.request.Request(
         check.target,
         headers={
-            "User-Agent": "ops-health-dashboard/0.1",
+            "User-Agent": "ops-health-dashboard/0.2",
             "Accept": "*/*",
         },
         method="GET",
