@@ -26,6 +26,23 @@ python server.py
 
 修改 `checks.json` 后重启服务。所有资产都在这个文件里，不需要改代码。
 
+## Windows 常驻
+
+以当前用户身份安装登录启动项，不需要管理员权限：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install-autostart.ps1 -DryRun
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install-autostart.ps1
+```
+
+卸载：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\uninstall-autostart.ps1
+```
+
+启动项会做两件事：登录后拉起看板，以及检查 `origin/main` 的已验证更新。更新只在工作区干净时执行 fast-forward，并先跑测试。日志位于 `data\logs\`（已加入 `.gitignore`，不会提交）。
+
 ## 配置
 
 最小示例：
