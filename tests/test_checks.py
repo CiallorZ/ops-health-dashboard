@@ -62,6 +62,14 @@ class ChecksTests(unittest.TestCase):
         self.assertEqual(result.status, "ok")
         self.assertEqual(result.metrics["final_url"], "https://example.com/final")
 
+    def test_result_preserves_configured_group(self):
+        check = CheckConfig(
+            id="api", name="API", type="http", target="https://example.com/", group="核心服务"
+        )
+        with patch("monitor.checks.urllib.request.urlopen", return_value=FakeResponse()):
+            result = _run_http(check, Thresholds())
+        self.assertEqual(result.to_dict()["group"], "核心服务")
+
     def test_http_wrong_status_is_failure(self):
         check = CheckConfig(
             id="api",

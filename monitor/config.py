@@ -47,6 +47,7 @@ class CheckConfig:
     expected_status: tuple[int, ...] = (200,)
     timeout_seconds: float = 5.0
     verify_tls: bool = True
+    group: str = "未分组"
     tags: tuple[str, ...] = ()
 
     def public_dict(self) -> dict[str, Any]:
@@ -63,6 +64,7 @@ class CheckConfig:
             "expected_status": list(self.expected_status),
             "timeout_seconds": self.timeout_seconds,
             "verify_tls": self.verify_tls,
+            "group": self.group,
             "tags": list(self.tags),
         }
 
@@ -120,6 +122,19 @@ def _string_list(value: Any, *, name: str) -> tuple[str, ...]:
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise ConfigError(f"{name} must be a list of strings")
     return tuple(item.strip() for item in value if item.strip())
+
+
+def _group(value: Any, *, name: str) -> str:
+    if value is None:
+        return "未分组"
+    if not isinstance(value, str):
+        raise ConfigError(f"{name} must be a string")
+    group = " ".join(value.split())
+    if not group:
+        raise ConfigError(f"{name} must not be empty")
+    if len(group) > 80:
+        raise ConfigError(f"{name} must be at most 80 characters")
+    return group
 
 
 def _parse_expected_status(value: Any, *, name: str) -> tuple[int, ...]:
@@ -221,6 +236,7 @@ def _parse_check(raw: Any, index: int) -> CheckConfig:
         ),
         timeout_seconds=timeout,
         verify_tls=verify_tls,
+        group=_group(raw.get("group"), name=f"{label}.group"),
         tags=_string_list(raw.get("tags"), name=f"{label}.tags"),
     )
 

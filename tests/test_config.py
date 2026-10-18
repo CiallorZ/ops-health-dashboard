@@ -26,7 +26,22 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(check.expected_status, (200,))
         self.assertEqual(check.timeout_seconds, 5.0)
         self.assertTrue(check.verify_tls)
+        self.assertEqual(check.group, "未分组")
         self.assertEqual(config.thresholds.tls_warn_days, 30)
+
+    def test_group_is_normalized_and_exposed(self):
+        raw = json.loads(json.dumps(MINIMAL))
+        raw["checks"][0]["group"] = "  核心   服务  "
+        check = parse_config(raw).checks[0]
+        self.assertEqual(check.group, "核心 服务")
+        self.assertEqual(check.public_dict()["group"], "核心 服务")
+
+    def test_group_must_be_a_short_non_empty_string(self):
+        for value, message in (("   ", "must not be empty"), (42, "must be a string")):
+            raw = json.loads(json.dumps(MINIMAL))
+            raw["checks"][0]["group"] = value
+            with self.assertRaisesRegex(ConfigError, message):
+                parse_config(raw)
 
     def test_rejects_duplicate_ids(self):
         raw = json.loads(json.dumps(MINIMAL))

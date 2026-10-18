@@ -42,6 +42,7 @@ def build_report(snapshot: dict[str, Any], *, skipped_check_ids: tuple[str, ...]
             continue
         rows.append(
             "<tr>"
+            f"<td>{_cell(check.get('group', '未分组'))}</td>"
             f"<td>{_cell(check.get('name'))}</td>"
             f"<td>{_cell(check.get('type'))}</td>"
             f"<td>{_cell(check.get('target'))}</td>"
@@ -52,7 +53,7 @@ def build_report(snapshot: dict[str, Any], *, skipped_check_ids: tuple[str, ...]
             "</tr>"
         )
     if not rows:
-        rows.append('<tr><td colspan="7">本次没有已执行的检查。</td></tr>')
+        rows.append('<tr><td colspan="8">本次没有已执行的检查。</td></tr>')
 
     skipped = ", ".join(escape(check_id, quote=True) for check_id in skipped_check_ids)
     generated_at = _cell(snapshot.get("generated_at"))
@@ -83,7 +84,7 @@ th{{background:#edf2f5}} .notice{{background:#f5f7f8;padding:1rem;border-left:4p
 <p>已跳过（配置为 disabled）的检查 ID：{skipped or '无'}。</p>
 <p>未包含独立的系统能力探测；DNS、路由、权限和网络策略等未测量能力须另行验证。</p></section>
 <h2>已测量结果</h2>
-<table><thead><tr><th>名称</th><th>类型</th><th>目标</th><th>状态</th><th>摘要</th><th>详情</th><th>延迟 (ms)</th></tr></thead>
+<table><thead><tr><th>分组</th><th>名称</th><th>类型</th><th>目标</th><th>状态</th><th>摘要</th><th>详情</th><th>延迟 (ms)</th></tr></thead>
 <tbody>{''.join(rows)}</tbody></table>
 <p>导出时会移除 URL 中的用户信息、查询参数与片段。请勿在检查名称、错误描述或配置中存放凭据。</p>
 </body></html>"""

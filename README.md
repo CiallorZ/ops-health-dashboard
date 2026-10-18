@@ -9,6 +9,7 @@
 - **四类检查**：ICMP ping、TCP 端口、TLS 证书有效期、HTTP 状态码与延迟。
 - **可解释状态**：`ok` / `warn` / `fail`，并保留原始错误信息、延迟、状态码与证书到期时间。
 - **历史采样**：每次完整检测写入本地 `data/history.jsonl`，页面展示最近 32 次健康轨迹。
+- **多目标分组**：为每个检查指定业务分组，页面和离线报告会按组显示本轮真实结果。
 - **离线报告**：`/api/report` 下载当前快照的自包含 HTML，明确测量边界、跳过项和未测量能力；URL 中的凭据、查询参数和片段会在导出时脱敏。
 - **有界超时**：每个检查独立超时，任一检查失败不会拖垮整个看板。
 - **安全默认值**：只监听 `127.0.0.1`，CSP、`nosniff`、禁止 iframe，配置校验拒绝 URL 内的凭据。
@@ -61,6 +62,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\uninstall-autostart.
     {
       "id": "api",
       "name": "生产 API",
+      "group": "核心服务",
       "type": "http",
       "target": "https://example.com/health",
       "expected_status": [200, 204],
@@ -104,6 +106,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\uninstall-autostart.
 | `port` | `tcp` 必填；`tls` 默认 443 |
 | `expected_status` | HTTP 可接受状态码，默认 `[200]` |
 | `verify_tls` | 是否验证证书链，默认 `true`；不验证会显著降低判断可信度 |
+| `group` | 业务分组名称，默认 `未分组`；最多 80 个字符 |
 | `timeout_seconds` | 单项超时，范围 0.2–60 秒 |
 | `enabled` | 设为 `false` 可暂时停用单项，不必删除 |
 
@@ -152,7 +155,7 @@ docker compose up --build -d
 ## Roadmap
 
 - [x] `v0.1` 基线：四类检测、实时看板、历史、CI、Docker。
-- [ ] `v0.2` 可用性：多目标分组、单检查重试、延迟分布。
+- [ ] `v0.2` 可用性：单检查重试、延迟分布。
 - [ ] `v0.3` 告警：Webhook / 邮件事件，带去重与冷却。
 - [ ] `v0.4` 趋势：按天聚合、可用率与证书到期日历。
 - [ ] `v0.5` 多用户：只读分享、反向代理鉴权示例。

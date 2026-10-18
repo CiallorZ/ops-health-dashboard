@@ -10,6 +10,7 @@
     {
       "id": "dashboard-api",
       "name": "看板 API",
+      "group": "本机服务",
       "type": "http",
       "target": "http://127.0.0.1:8080/api/health",
       "expected_status": [200],
@@ -19,6 +20,7 @@
     {
       "id": "example-tls",
       "name": "Example TLS",
+      "group": "外部依赖",
       "type": "tls",
       "target": "example.com",
       "port": 443,
@@ -28,6 +30,7 @@
     {
       "id": "github-web",
       "name": "GitHub Web",
+      "group": "外部依赖",
       "type": "http",
       "target": "https://github.com/",
       "expected_status": [200],
@@ -37,6 +40,7 @@
     {
       "id": "public-dns-tcp",
       "name": "Cloudflare DNS / TCP",
+      "group": "外部依赖",
       "type": "tcp",
       "target": "1.1.1.1",
       "port": 53,
@@ -46,6 +50,7 @@
     {
       "id": "loopback-ping",
       "name": "本机回环 / ICMP",
+      "group": "本机服务",
       "type": "ping",
       "target": "127.0.0.1",
       "timeout_seconds": 3,

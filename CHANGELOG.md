@@ -4,6 +4,14 @@ All notable changes are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.1] - 2026-10-18
+
+### Added
+
+- Checks can now declare a bounded `group` label. Snapshot results, the live
+  dashboard, and offline reports retain it so operators can review related
+  targets together.
+
 ## [0.2.0] - 2026-10-18
 
 ### Added

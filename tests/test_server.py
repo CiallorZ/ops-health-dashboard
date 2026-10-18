@@ -83,6 +83,7 @@ class ServerTests(unittest.TestCase):
             "summary": {"health": "critical", "total": 1, "ok": 0, "warn": 0, "fail": 1},
             "checks": [{
                 "name": "<script>alert(1)</script>",
+                "group": "<b>核心服务</b>",
                 "type": "http",
                 "target": "https://user:secret@example.test/path?token=secret#fragment",
                 "status": "fail",
@@ -100,6 +101,7 @@ class ServerTests(unittest.TestCase):
         self.assertNotIn("<script>alert(1)</script>", body)
         self.assertIn("https://example.test/path", body)
         self.assertNotIn("secret", body)
+        self.assertIn("&lt;b&gt;核心服务&lt;/b&gt;", body)
 
     def test_report_handles_invalid_url_port_without_exposing_query(self):
         self.server.runner.get_snapshot = lambda **_kwargs: {

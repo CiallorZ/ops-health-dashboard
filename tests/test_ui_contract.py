@@ -16,6 +16,8 @@ class UiContractTests(unittest.TestCase):
         javascript = (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
         self.assertIn("function escapeHtml", javascript)
         self.assertIn("escapeHtml(check.name)", javascript)
+        self.assertIn("check.group", javascript)
+        self.assertIn("check-group-title", javascript)
 
     def test_document_has_accessibility_hooks(self):
         html = (ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
