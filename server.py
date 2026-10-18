@@ -18,6 +18,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 from monitor import __version__
 from monitor.config import ConfigError, load_config
 from monitor.history import HistoryStore
+from monitor.report import build_report
 from monitor.runner import CheckRunnerService
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -80,6 +81,9 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/config":
             self._send_json(HTTPStatus.OK, self.server.runner.config.public_dict())
             return
+        if parsed.path == "/api/report":
+            self._send_report()
+            return
         if parsed.path.startswith("/api/"):
             self._send_error(HTTPStatus.NOT_FOUND, "unknown API endpoint")
             return
@@ -109,6 +113,28 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             )
             return
         self._send_json(HTTPStatus.OK, snapshot)
+
+    def _send_report(self) -> None:
+        try:
+            snapshot = self.server.runner.get_snapshot(history_limit=40)
+            skipped = tuple(
+                check.id for check in self.server.runner.config.checks if not check.enabled
+            )
+            data = build_report(snapshot, skipped_check_ids=skipped)
+        except Exception as exc:
+            self._send_error(
+                HTTPStatus.INTERNAL_SERVER_ERROR,
+                f"report failed: {type(exc).__name__}",
+            )
+            return
+        self.send_response(HTTPStatus.OK)
+        self._security_headers()
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Content-Disposition", 'attachment; filename="sentinel-report.html"')
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
 
     def _serve_static(self, path: str, *, head_only: bool = False) -> None:
         decoded = unquote(path)

@@ -2,13 +2,14 @@
 
 一个零依赖、默认只监听本机的运维健康看板。它把网络连通性、TCP 端口、TLS 证书和 HTTP 服务状态放在同一条实时时间线上，帮助你在用户投诉前发现异常。
 
-> 当前版本：`v0.1.0`。状态来自真实检测；失败就是失败，不做“演示模式”或伪造成功率。
+> 当前版本：`v0.2.0`。状态来自真实检测；失败就是失败，不做“演示模式”或伪造成功率。
 
 ## 功能
 
 - **四类检查**：ICMP ping、TCP 端口、TLS 证书有效期、HTTP 状态码与延迟。
 - **可解释状态**：`ok` / `warn` / `fail`，并保留原始错误信息、延迟、状态码与证书到期时间。
 - **历史采样**：每次完整检测写入本地 `data/history.jsonl`，页面展示最近 32 次健康轨迹。
+- **离线报告**：`/api/report` 下载当前快照的自包含 HTML，明确测量边界、跳过项和未测量能力；URL 中的凭据、查询参数和片段会在导出时脱敏。
 - **有界超时**：每个检查独立超时，任一检查失败不会拖垮整个看板。
 - **安全默认值**：只监听 `127.0.0.1`，CSP、`nosniff`、禁止 iframe，配置校验拒绝 URL 内的凭据。
 - **无构建链**：Python 标准库 + 原生 HTML/CSS/JS，不安装运行时依赖。
@@ -114,6 +115,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\uninstall-autostart.
 | `GET` | `/api/status` | 获取缓存状态；`?force=1` 强制重新检测 |
 | `GET` | `/api/history?limit=40` | 读取历史摘要 |
 | `GET` | `/api/config` | 只读配置，不含任何秘密 |
+| `GET` | `/api/report` | 下载当前快照的离线 HTML 诊断报告 |
 
 `/api/status` 默认缓存 8 秒，避免浏览器多标签页同时制造重复请求。
 
@@ -123,7 +125,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\uninstall-autostart.
 
 ```powershell
 python -m unittest discover -s tests -v
-python -m compileall -q monitor server.py
+python -W error::ResourceWarning -m unittest discover -s tests -q
+python -m compileall -q monitor toolbox server.py tests
+node --check dashboard\app.js
+git diff --check
 ```
 
 CI 会在 Python 3.11 和 3.13 上执行同一套测试。测试覆盖配置拒绝路径、HTTP/TLS 边界、并发刷新去重、历史持久化和 HTTP 安全响应头。
