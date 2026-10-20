@@ -62,6 +62,20 @@ class RunnerTests(unittest.TestCase):
             second = runner.get_snapshot()
         self.assertEqual(first["run_id"], second["run_id"])
 
+    def test_force_refresh_bypasses_cache_window(self):
+        with TemporaryDirectory() as directory:
+            runner = CheckRunnerService(
+                self._config(),
+                HistoryStore(directory),
+                cache_seconds=60,
+                check_runner=fake_check,
+            )
+            first = runner.get_snapshot(force=True)
+            second = runner.get_snapshot(force=True)
+            third = runner.get_snapshot()
+        self.assertNotEqual(first["run_id"], second["run_id"])
+        self.assertEqual(second["run_id"], third["run_id"])
+
     def test_concurrent_requests_produce_one_refresh(self):
         calls = 0
 
