@@ -18,11 +18,13 @@ class UiContractTests(unittest.TestCase):
         self.assertIn("escapeHtml(check.name)", javascript)
         self.assertIn("check.group", javascript)
         self.assertIn("check-group-title", javascript)
+        self.assertIn("recovered_after_retry", javascript)
 
     def test_document_has_accessibility_hooks(self):
         html = (ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
         self.assertIn('lang="zh-CN"', html)
         self.assertIn("aria-live", html)
+        self.assertIn("v0.3.0", html)
         self.assertIn("prefers-reduced-motion", (ROOT / "dashboard" / "styles.css").read_text(encoding="utf-8"))
 
 

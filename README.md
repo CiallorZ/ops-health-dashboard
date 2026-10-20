@@ -2,7 +2,7 @@
 
 一个零依赖、默认只监听本机的运维健康看板。它把网络连通性、TCP 端口、TLS 证书和 HTTP 服务状态放在同一条实时时间线上，帮助你在用户投诉前发现异常。
 
-> 当前版本：`v0.2.0`。状态来自真实检测；失败就是失败，不做“演示模式”或伪造成功率。
+> 当前版本：`v0.3.0`。状态来自真实检测；失败就是失败，不做“演示模式”或伪造成功率。
 
 ## 功能
 
@@ -12,6 +12,7 @@
 - **多目标分组**：为每个检查指定业务分组，页面和离线报告会按组显示本轮真实结果。
 - **离线报告**：`/api/report` 下载当前快照的自包含 HTML，明确测量边界、跳过项和未测量能力；URL 中的凭据、查询参数和片段会在导出时脱敏。
 - **有界超时**：每个检查独立超时，任一检查失败不会拖垮整个看板。
+- **受限重试**：可为偶发失败配置最多两次额外尝试；看板会显示最终结果实际经历的尝试次数，不掩盖持续失败。
 - **安全默认值**：只监听 `127.0.0.1`，CSP、`nosniff`、禁止 iframe，配置校验拒绝 URL 内的凭据。
 - **无构建链**：Python 标准库 + 原生 HTML/CSS/JS，不安装运行时依赖。
 - **三端运行**：Windows 本机、Docker、任意有 Python 3.11+ 的机器。
@@ -67,6 +68,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\uninstall-autostart.
       "target": "https://example.com/health",
       "expected_status": [200, 204],
       "timeout_seconds": 5,
+      "retry_attempts": 1,
       "tags": ["production", "api"]
     },
     {
@@ -108,6 +110,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\uninstall-autostart.
 | `verify_tls` | 是否验证证书链，默认 `true`；不验证会显著降低判断可信度 |
 | `group` | 业务分组名称，默认 `未分组`；最多 80 个字符 |
 | `timeout_seconds` | 单项超时，范围 0.2–60 秒 |
+| `retry_attempts` | 失败后的额外尝试次数，范围 0–2，默认 `0`；一次完整检查最多执行 3 次 |
 | `enabled` | 设为 `false` 可暂时停用单项，不必删除 |
 
 ## API
@@ -155,7 +158,7 @@ docker compose up --build -d
 ## Roadmap
 
 - [x] `v0.1` 基线：四类检测、实时看板、历史、CI、Docker。
-- [ ] `v0.2` 可用性：单检查重试、延迟分布。
+- [ ] `v0.2` 可用性：延迟分布。
 - [ ] `v0.3` 告警：Webhook / 邮件事件，带去重与冷却。
 - [ ] `v0.4` 趋势：按天聚合、可用率与证书到期日历。
 - [ ] `v0.5` 多用户：只读分享、反向代理鉴权示例。

@@ -1,4 +1,4 @@
 """Core monitoring primitives for ops-health-dashboard."""
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 

@@ -25,6 +25,7 @@ class ConfigTests(unittest.TestCase):
         check = config.checks[0]
         self.assertEqual(check.expected_status, (200,))
         self.assertEqual(check.timeout_seconds, 5.0)
+        self.assertEqual(check.retry_attempts, 0)
         self.assertTrue(check.verify_tls)
         self.assertEqual(check.group, "未分组")
         self.assertEqual(config.thresholds.tls_warn_days, 30)
@@ -40,6 +41,19 @@ class ConfigTests(unittest.TestCase):
         for value, message in (("   ", "must not be empty"), (42, "must be a string")):
             raw = json.loads(json.dumps(MINIMAL))
             raw["checks"][0]["group"] = value
+            with self.assertRaisesRegex(ConfigError, message):
+                parse_config(raw)
+
+    def test_retry_attempts_is_bounded_and_public(self):
+        raw = json.loads(json.dumps(MINIMAL))
+        raw["checks"][0]["retry_attempts"] = 2
+        check = parse_config(raw).checks[0]
+        self.assertEqual(check.retry_attempts, 2)
+        self.assertEqual(check.public_dict()["retry_attempts"], 2)
+
+        for value, message in ((-1, "between"), (3, "between"), (True, "integer")):
+            raw = json.loads(json.dumps(MINIMAL))
+            raw["checks"][0]["retry_attempts"] = value
             with self.assertRaisesRegex(ConfigError, message):
                 parse_config(raw)
 

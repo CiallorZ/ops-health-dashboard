@@ -46,6 +46,7 @@ class CheckConfig:
     port: int | None = None
     expected_status: tuple[int, ...] = (200,)
     timeout_seconds: float = 5.0
+    retry_attempts: int = 0
     verify_tls: bool = True
     group: str = "未分组"
     tags: tuple[str, ...] = ()
@@ -63,6 +64,7 @@ class CheckConfig:
             "port": port,
             "expected_status": list(self.expected_status),
             "timeout_seconds": self.timeout_seconds,
+            "retry_attempts": self.retry_attempts,
             "verify_tls": self.verify_tls,
             "group": self.group,
             "tags": list(self.tags),
@@ -113,6 +115,16 @@ def _port(value: Any, *, name: str, default: int | None = None) -> int | None:
         raise ConfigError(f"{name} must be an integer")
     if not 1 <= value <= 65535:
         raise ConfigError(f"{name} must be between 1 and 65535")
+    return value
+
+
+def _retry_attempts(value: Any, *, name: str) -> int:
+    if value is None:
+        return 0
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ConfigError(f"{name} must be an integer")
+    if not 0 <= value <= 2:
+        raise ConfigError(f"{name} must be between 0 and 2")
     return value
 
 
@@ -235,6 +247,9 @@ def _parse_check(raw: Any, index: int) -> CheckConfig:
             raw.get("expected_status"), name=f"{label}.expected_status"
         ),
         timeout_seconds=timeout,
+        retry_attempts=_retry_attempts(
+            raw.get("retry_attempts"), name=f"{label}.retry_attempts"
+        ),
         verify_tls=verify_tls,
         group=_group(raw.get("group"), name=f"{label}.group"),
         tags=_string_list(raw.get("tags"), name=f"{label}.tags"),

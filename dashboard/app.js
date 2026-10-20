@@ -137,6 +137,10 @@ function renderCheck(check) {
   const status = ["ok", "warn", "fail"].includes(check.status)
     ? check.status
     : "unknown";
+  const attempts = Number(check.metrics?.attempts ?? 1);
+  const attemptNote = attempts > 1
+    ? ` · 第 ${attempts} 次尝试${check.metrics?.recovered_after_retry ? "恢复" : ""}`
+    : "";
   return `
     <article class="check-row" data-status="${escapeHtml(status)}">
       <span class="status-line ${escapeHtml(status)}" aria-hidden="true"></span>
@@ -146,7 +150,7 @@ function renderCheck(check) {
           <span class="check-type">${escapeHtml(check.type)}</span>
         </div>
         <p class="check-target">${escapeHtml(targetLabel(check))}</p>
-        <p class="check-detail">${escapeHtml(check.detail || check.summary)}</p>
+        <p class="check-detail">${escapeHtml(check.detail || check.summary)}${escapeHtml(attemptNote)}</p>
       </div>
       <div class="check-time">
         <strong>${check.latency_ms == null ? "--" : `${Math.round(check.latency_ms)} ms`}</strong>
