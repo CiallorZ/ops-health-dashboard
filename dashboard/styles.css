@@ -550,6 +550,27 @@ h2 {
 
 .checks-list {
   display: grid;
+  gap: 18px;
+}
+
+.check-group + .check-group {
+  padding-top: 2px;
+}
+
+.check-group-title {
+  display: flex;
+  justify-content: space-between;
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.check-group-title span {
+  color: var(--faint);
 }
 
 .check-row {
@@ -968,6 +989,10 @@ footer b {
 
   .check-row {
     grid-template-columns: 9px minmax(0, 1fr);
+  }
+
+  .check-group-title {
+    font-size: 9px;
   }
 
   .check-time {

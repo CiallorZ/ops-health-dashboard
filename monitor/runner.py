@@ -92,10 +92,27 @@ class CheckRunnerService:
             max_workers=workers, thread_name_prefix="health-check"
         ) as executor:
             futures = [
-                executor.submit(self.check_runner, check, self.config.thresholds)
+                executor.submit(self._run_with_retries, check)
                 for check in checks
             ]
             return [future.result() for future in futures]
+
+    def _run_with_retries(self, check: CheckConfig) -> CheckResult:
+        """Retry only a completed failed result, preserving the final evidence."""
+        attempts = 0
+        result: CheckResult | None = None
+        while attempts <= check.retry_attempts:
+            attempts += 1
+            result = self.check_runner(check, self.config.thresholds)
+            if result.status != "fail":
+                break
+        assert result is not None
+        result.metrics = {
+            **result.metrics,
+            "attempts": attempts,
+            "recovered_after_retry": attempts > 1 and result.status != "fail",
+        }
+        return result
 
     @staticmethod
     def _summarize(results: list[CheckResult]) -> dict:

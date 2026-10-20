@@ -137,6 +137,10 @@ function renderCheck(check) {
   const status = ["ok", "warn", "fail"].includes(check.status)
     ? check.status
     : "unknown";
+  const attempts = Number(check.metrics?.attempts ?? 1);
+  const attemptNote = attempts > 1
+    ? ` · 第 ${attempts} 次尝试${check.metrics?.recovered_after_retry ? "恢复" : ""}`
+    : "";
   return `
     <article class="check-row" data-status="${escapeHtml(status)}">
       <span class="status-line ${escapeHtml(status)}" aria-hidden="true"></span>
@@ -146,7 +150,7 @@ function renderCheck(check) {
           <span class="check-type">${escapeHtml(check.type)}</span>
         </div>
         <p class="check-target">${escapeHtml(targetLabel(check))}</p>
-        <p class="check-detail">${escapeHtml(check.detail || check.summary)}</p>
+        <p class="check-detail">${escapeHtml(check.detail || check.summary)}${escapeHtml(attemptNote)}</p>
       </div>
       <div class="check-time">
         <strong>${check.latency_ms == null ? "--" : `${Math.round(check.latency_ms)} ms`}</strong>
@@ -168,7 +172,19 @@ function renderChecks() {
       : '<div class="empty-state">没有可展示的检测结果</div>';
     return;
   }
-  elements.checksList.innerHTML = filtered.map(renderCheck).join("");
+  const groups = new Map();
+  for (const check of filtered) {
+    const group = String(check.group || "未分组");
+    const items = groups.get(group) ?? [];
+    items.push(check);
+    groups.set(group, items);
+  }
+  elements.checksList.innerHTML = Array.from(groups, ([group, items]) => `
+    <section class="check-group">
+      <h3 class="check-group-title">${escapeHtml(group)} <span>${items.length} 项</span></h3>
+      ${items.map(renderCheck).join("")}
+    </section>
+  `).join("");
 }
 
 function renderTrend(history) {

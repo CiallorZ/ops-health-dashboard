@@ -2,14 +2,17 @@
 
 一个零依赖、默认只监听本机的运维健康看板。它把网络连通性、TCP 端口、TLS 证书和 HTTP 服务状态放在同一条实时时间线上，帮助你在用户投诉前发现异常。
 
-> 当前版本：`v0.1.0`。状态来自真实检测；失败就是失败，不做“演示模式”或伪造成功率。
+> 当前版本：`v0.3.0`。状态来自真实检测；失败就是失败，不做“演示模式”或伪造成功率。
 
 ## 功能
 
 - **四类检查**：ICMP ping、TCP 端口、TLS 证书有效期、HTTP 状态码与延迟。
 - **可解释状态**：`ok` / `warn` / `fail`，并保留原始错误信息、延迟、状态码与证书到期时间。
 - **历史采样**：每次完整检测写入本地 `data/history.jsonl`，页面展示最近 32 次健康轨迹。
+- **多目标分组**：为每个检查指定业务分组，页面和离线报告会按组显示本轮真实结果。
+- **离线报告**：`/api/report` 下载当前快照的自包含 HTML，明确测量边界、跳过项和未测量能力；URL 中的凭据、查询参数和片段会在导出时脱敏。
 - **有界超时**：每个检查独立超时，任一检查失败不会拖垮整个看板。
+- **受限重试**：可为偶发失败配置最多两次额外尝试；看板会显示最终结果实际经历的尝试次数，不掩盖持续失败。
 - **安全默认值**：只监听 `127.0.0.1`，CSP、`nosniff`、禁止 iframe，配置校验拒绝 URL 内的凭据。
 - **无构建链**：Python 标准库 + 原生 HTML/CSS/JS，不安装运行时依赖。
 - **三端运行**：Windows 本机、Docker、任意有 Python 3.11+ 的机器。
@@ -60,10 +63,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\uninstall-autostart.
     {
       "id": "api",
       "name": "生产 API",
+      "group": "核心服务",
       "type": "http",
       "target": "https://example.com/health",
       "expected_status": [200, 204],
       "timeout_seconds": 5,
+      "retry_attempts": 1,
       "tags": ["production", "api"]
     },
     {
@@ -103,7 +108,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\uninstall-autostart.
 | `port` | `tcp` 必填；`tls` 默认 443 |
 | `expected_status` | HTTP 可接受状态码，默认 `[200]` |
 | `verify_tls` | 是否验证证书链，默认 `true`；不验证会显著降低判断可信度 |
+| `group` | 业务分组名称，默认 `未分组`；最多 80 个字符 |
 | `timeout_seconds` | 单项超时，范围 0.2–60 秒 |
+| `retry_attempts` | 失败后的额外尝试次数，范围 0–2，默认 `0`；一次完整检查最多执行 3 次 |
 | `enabled` | 设为 `false` 可暂时停用单项，不必删除 |
 
 ## API
@@ -114,6 +121,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\uninstall-autostart.
 | `GET` | `/api/status` | 获取缓存状态；`?force=1` 强制重新检测 |
 | `GET` | `/api/history?limit=40` | 读取历史摘要 |
 | `GET` | `/api/config` | 只读配置，不含任何秘密 |
+| `GET` | `/api/report` | 下载当前快照的离线 HTML 诊断报告 |
 
 `/api/status` 默认缓存 8 秒，避免浏览器多标签页同时制造重复请求。
 
@@ -123,7 +131,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\uninstall-autostart.
 
 ```powershell
 python -m unittest discover -s tests -v
-python -m compileall -q monitor server.py
+python -W error::ResourceWarning -m unittest discover -s tests -q
+python -m compileall -q monitor toolbox server.py tests
+node --check dashboard\app.js
+git diff --check
 ```
 
 CI 会在 Python 3.11 和 3.13 上执行同一套测试。测试覆盖配置拒绝路径、HTTP/TLS 边界、并发刷新去重、历史持久化和 HTTP 安全响应头。
@@ -147,7 +158,7 @@ docker compose up --build -d
 ## Roadmap
 
 - [x] `v0.1` 基线：四类检测、实时看板、历史、CI、Docker。
-- [ ] `v0.2` 可用性：多目标分组、单检查重试、延迟分布。
+- [ ] `v0.2` 可用性：延迟分布。
 - [ ] `v0.3` 告警：Webhook / 邮件事件，带去重与冷却。
 - [ ] `v0.4` 趋势：按天聚合、可用率与证书到期日历。
 - [ ] `v0.5` 多用户：只读分享、反向代理鉴权示例。

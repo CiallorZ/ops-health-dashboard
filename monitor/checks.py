@@ -27,6 +27,7 @@ class CheckResult:
     detail: str
     latency_ms: float | None
     checked_at: str
+    group: str = "未分组"
     tags: tuple[str, ...] = ()
     metrics: dict[str, Any] = field(default_factory=dict)
 
@@ -44,6 +45,7 @@ class CheckResult:
                 round(self.latency_ms, 1) if self.latency_ms is not None else None
             ),
             "checked_at": self.checked_at,
+            "group": self.group,
             "tags": list(self.tags),
             "metrics": self.metrics,
         }
@@ -91,6 +93,7 @@ def _base_result(
         detail=detail,
         latency_ms=latency_ms,
         checked_at=isoformat(utc_now()),
+        group=check.group,
         tags=check.tags,
         metrics=metrics or {},
     )

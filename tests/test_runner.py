@@ -90,6 +90,74 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(len({item["run_id"] for item in results}), 1)
         self.assertEqual(calls, 2)
 
+    def test_failed_check_retries_and_reports_recovery(self):
+        calls = 0
+
+        def flaky_check(check, thresholds):
+            nonlocal calls
+            calls += 1
+            result = fake_check(check, thresholds)
+            result.status = "fail" if calls == 1 else "ok"
+            return result
+
+        config = DashboardConfig(
+            version=1,
+            thresholds=Thresholds(),
+            checks=(
+                CheckConfig(
+                    id="flaky",
+                    name="Flaky",
+                    type="ping",
+                    target="127.0.0.1",
+                    retry_attempts=2,
+                ),
+            ),
+        )
+        with TemporaryDirectory() as directory:
+            runner = CheckRunnerService(
+                config, HistoryStore(directory), cache_seconds=0, check_runner=flaky_check
+            )
+            snapshot = runner.get_snapshot(force=True)
+        result = snapshot["checks"][0]
+        self.assertEqual(calls, 2)
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["metrics"]["attempts"], 2)
+        self.assertTrue(result["metrics"]["recovered_after_retry"])
+
+    def test_failed_check_stops_at_configured_retry_limit(self):
+        calls = 0
+
+        def failed_check(check, thresholds):
+            nonlocal calls
+            calls += 1
+            result = fake_check(check, thresholds)
+            result.status = "fail"
+            return result
+
+        config = DashboardConfig(
+            version=1,
+            thresholds=Thresholds(),
+            checks=(
+                CheckConfig(
+                    id="failed",
+                    name="Failed",
+                    type="ping",
+                    target="127.0.0.1",
+                    retry_attempts=2,
+                ),
+            ),
+        )
+        with TemporaryDirectory() as directory:
+            runner = CheckRunnerService(
+                config, HistoryStore(directory), cache_seconds=0, check_runner=failed_check
+            )
+            snapshot = runner.get_snapshot(force=True)
+        result = snapshot["checks"][0]
+        self.assertEqual(calls, 3)
+        self.assertEqual(result["status"], "fail")
+        self.assertEqual(result["metrics"]["attempts"], 3)
+        self.assertFalse(result["metrics"]["recovered_after_retry"])
+
 
 if __name__ == "__main__":
     unittest.main()
