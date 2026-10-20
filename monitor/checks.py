@@ -12,7 +12,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable
 
+from . import __version__
 from .config import CheckConfig, Thresholds
+
+USER_AGENT = f"ops-health-dashboard/{__version__}"
 
 
 @dataclass
@@ -246,7 +249,7 @@ def _run_http(check: CheckConfig, thresholds: Thresholds) -> CheckResult:
     request = urllib.request.Request(
         check.target,
         headers={
-            "User-Agent": "ops-health-dashboard/0.1",
+            "User-Agent": USER_AGENT,
             "Accept": "*/*",
         },
         method="GET",

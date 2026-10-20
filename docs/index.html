@@ -1,0 +1,1193 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <meta name="theme-color" content="#080d10">
+    <meta
+      name="description"
+      content="Sentinel 是一个零依赖、默认只监听本机的运维健康看板：ICMP、TCP、TLS 与 HTTP 检测汇入同一条可信时间线。"
+    >
+    <title>Sentinel · 本地优先的运维健康看板</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101b1e'/%3E%3Cpath d='M8 22V15M16 22V9M24 22v-7' stroke='%23b5f36b' stroke-width='3'/%3E%3C/svg%3E"
+    >
+    <style>
+      :root {
+        --bg: #080d10;
+        --bg-soft: #0b1216;
+        --surface: #10171b;
+        --surface-raised: #141e23;
+        --line: rgba(206, 230, 224, 0.11);
+        --line-strong: rgba(206, 230, 224, 0.22);
+        --text: #e7eee9;
+        --muted: #97a7a2;
+        --faint: #61726e;
+        --acid: #b5f36b;
+        --acid-soft: rgba(181, 243, 107, 0.12);
+        --amber: #f4bd62;
+        --red: #ff716a;
+        --mono: "Cascadia Mono", "Cascadia Code", Consolas, monospace;
+        --sans: "Bahnschrift", "Microsoft YaHei UI", "Noto Sans SC", sans-serif;
+        --max: 1280px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+        background: var(--bg);
+      }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        color: var(--text);
+        font-family: var(--sans);
+        background:
+          radial-gradient(circle at 8% -10%, rgba(112, 175, 145, 0.18), transparent 34rem),
+          radial-gradient(circle at 96% 2%, rgba(181, 243, 107, 0.08), transparent 30rem),
+          linear-gradient(115deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+          linear-gradient(25deg, rgba(255, 255, 255, 0.013) 1px, transparent 1px),
+          var(--bg);
+        background-size: auto, auto, 72px 72px, 72px 72px, auto;
+      }
+
+      body::before {
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+        content: "";
+        background: linear-gradient(180deg, transparent 0, rgba(8, 13, 16, 0.72) 72%);
+      }
+
+      a {
+        color: inherit;
+      }
+
+      img {
+        display: block;
+        max-width: 100%;
+      }
+
+      .skip {
+        position: absolute;
+        left: -999px;
+        top: 12px;
+        z-index: 20;
+        padding: 10px 14px;
+        border-radius: 8px;
+        color: #08100a;
+        background: var(--acid);
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+
+      .skip:focus {
+        left: 12px;
+      }
+
+      .wrap {
+        width: min(var(--max), calc(100% - 72px));
+        margin: 0 auto;
+      }
+
+      /* ---------- navigation ---------- */
+      .nav {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        border-bottom: 1px solid var(--line);
+        background: rgba(8, 13, 16, 0.82);
+        backdrop-filter: blur(14px);
+      }
+
+      .nav-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 76px;
+      }
+
+      .brand {
+        display: inline-flex;
+        gap: 12px;
+        align-items: center;
+        text-decoration: none;
+      }
+
+      .brand-mark {
+        display: grid;
+        grid-template-columns: repeat(3, 4px);
+        gap: 4px;
+        align-items: end;
+        width: 30px;
+        height: 30px;
+        padding: 5px;
+        border: 1px solid var(--line-strong);
+        border-radius: 8px;
+        transform: skew(-8deg);
+      }
+
+      .brand-mark i {
+        display: block;
+        height: 45%;
+        background: var(--acid);
+      }
+
+      .brand-mark i:nth-child(2) {
+        height: 85%;
+      }
+
+      .brand-mark i:nth-child(3) {
+        height: 65%;
+        background: var(--muted);
+      }
+
+      .brand-copy {
+        display: grid;
+        gap: 1px;
+      }
+
+      .brand-copy strong {
+        font-size: 14px;
+        letter-spacing: 0.2em;
+      }
+
+      .brand-copy small {
+        color: var(--faint);
+        font-family: var(--mono);
+        font-size: 8px;
+        letter-spacing: 0.08em;
+      }
+
+      .nav-links {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+
+      .nav-links a {
+        padding: 8px 12px;
+        border-radius: 7px;
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 11px;
+        text-decoration: none;
+        transition: color 160ms ease, background 160ms ease;
+      }
+
+      .nav-links a:hover,
+      .nav-links a:focus-visible {
+        color: var(--text);
+        background: var(--surface-raised);
+        outline: none;
+      }
+
+      .nav-links .gh {
+        border: 1px solid var(--line-strong);
+        color: var(--text);
+      }
+
+      .nav-links .gh:hover {
+        border-color: var(--acid);
+        color: var(--acid);
+        background: var(--acid-soft);
+      }
+
+      /* ---------- shared type ---------- */
+      .kicker {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: 9px;
+        align-items: center;
+        margin: 0;
+        color: var(--faint);
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .kicker .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--acid);
+        box-shadow: 0 0 0 4px var(--acid-soft);
+        animation: pulse 2.4s ease-in-out infinite;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin-top: 0;
+      }
+
+      h2 {
+        max-width: 720px;
+        margin: 18px 0 14px;
+        font-size: clamp(30px, 4.2vw, 54px);
+        font-weight: 600;
+        letter-spacing: -0.055em;
+        line-height: 1.04;
+      }
+
+      .section-head p:last-child {
+        max-width: 560px;
+        margin-bottom: 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.8;
+      }
+
+      /* ---------- hero ---------- */
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+        gap: clamp(30px, 5vw, 78px);
+        align-items: start;
+        padding: clamp(56px, 8vw, 104px) 0 40px;
+      }
+
+      .hero-copy > * {
+        animation: rise 620ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+      }
+
+      .hero-copy > *:nth-child(2) { animation-delay: 60ms; }
+      .hero-copy > *:nth-child(3) { animation-delay: 120ms; }
+      .hero-copy > *:nth-child(4) { animation-delay: 180ms; }
+      .hero-copy > *:nth-child(5) { animation-delay: 240ms; }
+
+      .hero-copy {
+        padding-top: clamp(4px, 2.4vw, 30px);
+      }
+
+      .hero > * {
+        min-width: 0;
+      }
+
+      h1 {
+        margin: 20px 0 22px;
+        font-size: clamp(56px, 8.6vw, 118px);
+        font-weight: 600;
+        letter-spacing: -0.085em;
+        line-height: 0.9;
+        overflow-wrap: anywhere;
+      }
+
+      h1 em {
+        color: var(--acid);
+        font-style: normal;
+      }
+
+      h1 .period {
+        color: var(--amber);
+      }
+
+      .lead {
+        max-width: 520px;
+        margin-bottom: 30px;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.85;
+      }
+
+      .cta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .btn {
+        display: inline-flex;
+        gap: 10px;
+        align-items: center;
+        justify-content: center;
+        height: 46px;
+        padding: 0 20px;
+        border: 1px solid var(--line-strong);
+        border-radius: 10px;
+        font-family: var(--mono);
+        font-size: 12px;
+        text-decoration: none;
+        transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+      }
+
+      .btn:hover,
+      .btn:focus-visible {
+        transform: translateY(-1px);
+        outline: none;
+      }
+
+      .btn.primary {
+        border-color: transparent;
+        color: #0a1406;
+        background: var(--acid);
+        font-weight: 600;
+      }
+
+      .btn.primary:hover {
+        background: #c7ff85;
+      }
+
+      .btn.ghost {
+        color: var(--text);
+      }
+
+      .btn.ghost:hover,
+      .btn.ghost:focus-visible {
+        border-color: var(--acid);
+        color: var(--acid);
+        background: var(--acid-soft);
+      }
+
+      .facts {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0;
+        margin: 44px 0 0;
+      }
+
+      .facts div {
+        min-width: 118px;
+        padding-right: 26px;
+        margin-right: 26px;
+        border-right: 1px solid var(--line);
+      }
+
+      .facts div:last-child {
+        border-right: 0;
+        margin-right: 0;
+        padding-right: 0;
+      }
+
+      .facts dt {
+        font-family: var(--mono);
+        font-size: 24px;
+        letter-spacing: -0.06em;
+      }
+
+      .facts dd {
+        margin: 5px 0 0;
+        color: var(--faint);
+        font-size: 11px;
+      }
+
+      .hero-shot {
+        position: relative;
+        animation: rise 720ms 140ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+      }
+
+      .shot-frame {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid var(--line-strong);
+        border-radius: 18px;
+        background: var(--surface);
+        box-shadow: 0 40px 90px rgba(0, 0, 0, 0.45);
+        transform: perspective(1400px) rotateY(-4deg) rotateX(1.4deg);
+        transform-origin: 60% 40%;
+      }
+
+      .shot-frame::after {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        content: "";
+        background: linear-gradient(120deg, rgba(181, 243, 107, 0.08), transparent 34%, transparent 68%, rgba(181, 243, 107, 0.05));
+      }
+
+      .shot-frame img {
+        width: 100%;
+      }
+
+      .shot-scan {
+        position: absolute;
+        right: 0;
+        left: 0;
+        z-index: 2;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--acid), transparent);
+        opacity: 0.65;
+        animation: scan 7s linear infinite;
+      }
+
+      .shot-mobile {
+        position: absolute;
+        right: -18px;
+        bottom: -40px;
+        width: min(168px, 32%);
+        overflow: hidden;
+        border: 1px solid var(--line-strong);
+        border-radius: 14px;
+        background: var(--surface);
+        box-shadow: 0 28px 60px rgba(0, 0, 0, 0.55);
+      }
+
+      .shot-mobile img {
+        width: 100%;
+      }
+
+      /* ---------- ticker ---------- */
+      .ticker {
+        display: flex;
+        gap: 0;
+        overflow: hidden;
+        margin: 58px 0 0;
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+      }
+
+      .ticker-track {
+        display: flex;
+        flex: 0 0 auto;
+        gap: 42px;
+        align-items: center;
+        padding: 13px 21px;
+        color: var(--faint);
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        white-space: nowrap;
+        animation: marquee 26s linear infinite;
+      }
+
+      .ticker-track b {
+        color: var(--acid);
+        font-weight: 400;
+      }
+
+      .ticker-track i {
+        color: var(--amber);
+        font-style: normal;
+      }
+
+      .ticker-track s {
+        color: var(--red);
+        text-decoration: none;
+      }
+
+      /* ---------- sections ---------- */
+      section {
+        scroll-margin-top: 92px;
+      }
+
+      .section {
+        padding: clamp(62px, 9vw, 110px) 0 0;
+      }
+
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 40px;
+      }
+
+      .feature {
+        position: relative;
+        min-height: 208px;
+        padding: 24px 22px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: rgba(16, 23, 27, 0.78);
+        transition: border-color 180ms ease, transform 180ms ease, background 180ms ease;
+      }
+
+      .feature:hover {
+        border-color: var(--line-strong);
+        background: var(--surface-raised);
+        transform: translateY(-3px);
+      }
+
+      .feature .index {
+        color: var(--faint);
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.1em;
+      }
+
+      .feature h3 {
+        margin: 40px 0 10px;
+        font-size: 17px;
+        font-weight: 600;
+        letter-spacing: -0.03em;
+      }
+
+      .feature p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.75;
+      }
+
+      .feature::after {
+        position: absolute;
+        top: 22px;
+        right: 22px;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--faint);
+        content: "";
+      }
+
+      .feature[data-tone="acid"]::after { background: var(--acid); box-shadow: 0 0 0 5px var(--acid-soft); }
+      .feature[data-tone="amber"]::after { background: var(--amber); box-shadow: 0 0 0 5px rgba(244, 189, 98, 0.12); }
+      .feature[data-tone="red"]::after { background: var(--red); box-shadow: 0 0 0 5px rgba(255, 113, 106, 0.12); }
+
+      /* ---------- gallery ---------- */
+      .gallery {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 250px;
+        gap: 14px;
+        margin-top: 40px;
+      }
+
+      .gallery-main,
+      .gallery-side {
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: var(--surface);
+      }
+
+      .gallery-main img,
+      .gallery-side img {
+        width: 100%;
+      }
+
+      .gallery-caption {
+        display: flex;
+        justify-content: space-between;
+        padding: 12px 16px;
+        border-top: 1px solid var(--line);
+        color: var(--faint);
+        font-family: var(--mono);
+        font-size: 9px;
+      }
+
+      /* ---------- evidence ---------- */
+      .evidence {
+        display: grid;
+        grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+        gap: 46px;
+        align-items: start;
+        margin-top: clamp(62px, 9vw, 110px);
+        padding: 40px;
+        border: 1px solid var(--line-strong);
+        border-radius: 18px;
+        background:
+          linear-gradient(135deg, rgba(181, 243, 107, 0.08), transparent 54%),
+          var(--surface);
+      }
+
+      .evidence h2 {
+        margin: 14px 0 12px;
+        font-size: clamp(28px, 3.6vw, 42px);
+      }
+
+      .evidence p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.85;
+      }
+
+      .state-list {
+        display: grid;
+        gap: 10px;
+        margin: 0;
+      }
+
+      .state {
+        display: grid;
+        grid-template-columns: 10px 74px minmax(0, 1fr);
+        gap: 12px;
+        align-items: center;
+        padding: 13px 14px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: rgba(8, 13, 16, 0.56);
+      }
+
+      .state i {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--faint);
+      }
+
+      .state[data-tone="ok"] i { background: var(--acid); box-shadow: 0 0 0 4px var(--acid-soft); }
+      .state[data-tone="warn"] i { background: var(--amber); box-shadow: 0 0 0 4px rgba(244, 189, 98, 0.12); }
+      .state[data-tone="fail"] i { background: var(--red); box-shadow: 0 0 0 4px rgba(255, 113, 106, 0.12); }
+
+      .state strong {
+        font-family: var(--mono);
+        font-size: 11px;
+        font-weight: 400;
+      }
+
+      .state span {
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      /* ---------- quick start ---------- */
+      .start {
+        display: grid;
+        grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+        gap: 44px;
+        align-items: center;
+        margin-top: clamp(62px, 9vw, 110px);
+      }
+
+      .steps {
+        display: grid;
+        gap: 0;
+        margin: 30px 0 0;
+        padding: 0;
+        list-style: none;
+        counter-reset: step;
+      }
+
+      .steps li {
+        position: relative;
+        padding: 16px 0 16px 44px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.6;
+        counter-increment: step;
+      }
+
+      .steps li::before {
+        position: absolute;
+        top: 16px;
+        left: 0;
+        color: var(--acid);
+        font-family: var(--mono);
+        font-size: 10px;
+        content: "0" counter(step);
+      }
+
+      .steps b {
+        color: var(--text);
+        font-weight: 600;
+      }
+
+      .terminal {
+        overflow: hidden;
+        border: 1px solid var(--line-strong);
+        border-radius: 14px;
+        background: #070b0e;
+        box-shadow: 0 30px 70px rgba(0, 0, 0, 0.4);
+      }
+
+      .terminal-bar {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        padding: 11px 14px;
+        border-bottom: 1px solid var(--line);
+        color: var(--faint);
+        font-family: var(--mono);
+        font-size: 9px;
+        letter-spacing: 0.1em;
+      }
+
+      .terminal-bar::before {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--acid);
+        content: "";
+      }
+
+      .terminal pre {
+        margin: 0;
+        padding: 22px;
+        overflow-x: auto;
+        color: #cfe3d4;
+        font-family: var(--mono);
+        font-size: 12px;
+        line-height: 1.9;
+      }
+
+      .terminal .c { color: var(--faint); }
+      .terminal .g { color: var(--acid); }
+      .terminal .y { color: var(--amber); }
+
+      /* ---------- architecture ---------- */
+      .arch {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 40px;
+      }
+
+      .arch-step {
+        position: relative;
+        padding: 22px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(16, 23, 27, 0.7);
+      }
+
+      .arch-step:not(:last-child)::after {
+        position: absolute;
+        top: 50%;
+        right: -14px;
+        z-index: 1;
+        width: 14px;
+        text-align: center;
+        color: var(--faint);
+        font-family: var(--mono);
+        content: "→";
+      }
+
+      .arch-step small {
+        color: var(--faint);
+        font-family: var(--mono);
+        font-size: 9px;
+        letter-spacing: 0.1em;
+      }
+
+      .arch-step h3 {
+        margin: 14px 0 8px;
+        font-size: 15px;
+        font-weight: 600;
+      }
+
+      .arch-step p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.7;
+      }
+
+      /* ---------- footer ---------- */
+      footer {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 18px;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 96px;
+        padding: 30px 0 40px;
+        border-top: 1px solid var(--line);
+        color: var(--faint);
+        font-family: var(--mono);
+        font-size: 9px;
+      }
+
+      footer a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+
+      footer a:hover {
+        color: var(--acid);
+      }
+
+      /* ---------- motion ---------- */
+      @keyframes rise {
+        from { opacity: 0; transform: translateY(16px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      @keyframes pulse {
+        50% { opacity: 0.45; }
+      }
+
+      @keyframes scan {
+        from { top: 0; }
+        to { top: 100%; }
+      }
+
+      @keyframes marquee {
+        to { transform: translateX(-50%); }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html { scroll-behavior: auto; }
+        *, *::before, *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+
+      /* ---------- responsive ---------- */
+      @media (max-width: 1080px) {
+        .hero {
+          grid-template-columns: 1fr;
+          gap: 52px;
+        }
+
+        .hero-shot {
+          max-width: 860px;
+        }
+
+        .shot-frame {
+          transform: none;
+        }
+
+        .shot-mobile {
+          right: 16px;
+          bottom: -34px;
+          width: 132px;
+        }
+
+        .feature-grid,
+        .arch {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .arch-step:nth-child(2)::after {
+          display: none;
+        }
+
+        .gallery,
+        .evidence,
+        .start {
+          grid-template-columns: 1fr;
+        }
+
+        .gallery-side {
+          max-width: 260px;
+        }
+      }
+
+      @media (max-width: 720px) {
+        .wrap {
+          width: calc(100% - 32px);
+        }
+
+        .nav-inner {
+          height: 64px;
+        }
+
+        .brand-copy small,
+        .nav-links a:not(.gh) {
+          display: none;
+        }
+
+        .hero {
+          padding-top: 44px;
+        }
+
+        h1 {
+          font-size: clamp(52px, 17vw, 76px);
+        }
+
+        .facts div {
+          min-width: 96px;
+          padding-right: 16px;
+          margin-right: 16px;
+        }
+
+        .facts dt {
+          font-size: 18px;
+        }
+
+        .feature-grid,
+        .arch {
+          grid-template-columns: 1fr;
+        }
+
+        .arch-step::after {
+          display: none;
+        }
+
+        .shot-frame {
+          display: none;
+        }
+
+        .shot-mobile {
+          position: static;
+          display: block;
+          width: min(280px, 100%);
+          margin: 8px auto 0;
+          border-radius: 16px;
+        }
+
+        .evidence {
+          padding: 26px 20px;
+        }
+
+        .state {
+          grid-template-columns: 10px 62px minmax(0, 1fr);
+        }
+
+        .features,
+        .preview,
+        .start,
+        .architecture {
+          padding-top: 60px;
+        }
+
+        footer {
+          display: grid;
+          gap: 10px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <a class="skip" href="#main">跳到正文</a>
+
+    <header class="nav">
+      <div class="wrap nav-inner">
+        <a class="brand" href="#" aria-label="Sentinel 首页">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="brand-copy">
+            <strong>SENTINEL</strong>
+            <small>OPS / NETWORK / SECURITY</small>
+          </span>
+        </a>
+        <nav class="nav-links" aria-label="主导航">
+          <a href="#features">能力</a>
+          <a href="#preview">界面</a>
+          <a href="#start">快速开始</a>
+          <a class="gh" href="https://github.com/CiallorZ/ops-health-dashboard">GitHub ↗</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <div class="wrap">
+        <section class="hero" aria-labelledby="title">
+          <div class="hero-copy">
+            <p class="kicker"><span class="dot" aria-hidden="true"></span> LOCAL-FIRST OBSERVABILITY · v0.4.0</p>
+            <h1 id="title">把异常<br><em>提前看见</em><span class="period">。</span></h1>
+            <p class="lead">
+              ICMP、TCP、TLS 与 HTTP 检测汇入同一条实时时间线。
+              没有演示模式，没有伪造成功率——你看到的就是当前环境正在发生的事实。
+            </p>
+            <div class="cta">
+              <a class="btn primary" href="#start">5 分钟启动 →</a>
+              <a class="btn ghost" href="https://github.com/CiallorZ/ops-health-dashboard">查看源码</a>
+            </div>
+            <dl class="facts">
+              <div><dt>0</dt><dd>运行时依赖</dd></div>
+              <div><dt>4</dt><dd>检测类型</dd></div>
+              <div><dt>127.0.0.1</dt><dd>默认监听</dd></div>
+            </dl>
+          </div>
+
+          <div class="hero-shot">
+            <div class="shot-frame">
+              <span class="shot-scan" aria-hidden="true"></span>
+              <img
+                src="assets/dashboard-desktop.png"
+                alt="Sentinel 看板桌面截图：总体状态、检测汇总、资产检测列表与近期健康轨迹"
+                width="1440"
+                height="1600"
+              >
+            </div>
+            <div class="shot-mobile">
+              <img
+                src="assets/dashboard-mobile.png"
+                alt="Sentinel 看板移动端截图"
+                width="390"
+                height="1000"
+              >
+            </div>
+          </div>
+        </section>
+
+        <div class="ticker" aria-hidden="true">
+          <div class="ticker-track">
+            <span><b>● OK</b> 控制面 API · 12 ms</span>
+            <span><b>● OK</b> 本机回环 ICMP</span>
+            <span><i>● WARN</i> 商品目录 API · 1.2 s</span>
+            <span><s>● FAIL</s> 旧版任务端口 · 拒绝连接</span>
+            <span><b>↻ RETRY</b> 对账 API · 第 2 次恢复</span>
+            <span>REPORT / 自包含 HTML</span>
+            <span>HISTORY / 最近 40 次</span>
+            <span><b>● OK</b> 控制面 API · 12 ms</span>
+            <span><b>● OK</b> 本机回环 ICMP</span>
+            <span><i>● WARN</i> 商品目录 API · 1.2 s</span>
+            <span><s>● FAIL</s> 旧版任务端口 · 拒绝连接</span>
+            <span><b>↻ RETRY</b> 对账 API · 第 2 次恢复</span>
+            <span>REPORT / 自包含 HTML</span>
+            <span>HISTORY / 最近 40 次</span>
+          </div>
+        </div>
+
+        <section class="section" id="features" aria-labelledby="features-title">
+          <div class="section-head">
+            <p class="kicker">01 / CAPABILITIES</p>
+            <h2 id="features-title">六件事，都围绕“可信”</h2>
+            <p>不追求大而全。只把运维每天都要回答的几个问题，做扎实、做透明。</p>
+          </div>
+
+          <div class="feature-grid">
+            <article class="feature" data-tone="acid">
+              <span class="index">01</span>
+              <h3>四类真实检测</h3>
+              <p>ICMP 连通性、TCP 端口握手、TLS 证书剩余天数、HTTP 状态码与延迟，各自独立超时。</p>
+            </article>
+            <article class="feature" data-tone="amber">
+              <span class="index">02</span>
+              <h3>受限重试，不掩盖失败</h3>
+              <p>每个检查可选 0–2 次额外尝试。最终结果会写明第几次尝试、是否重试恢复，持续失败仍然显示失败。</p>
+            </article>
+            <article class="feature" data-tone="acid">
+              <span class="index">03</span>
+              <h3>业务分组</h3>
+              <p>按核心业务、遗留系统、外部依赖分组呈现，先看最重要的那一组。</p>
+            </article>
+            <article class="feature" data-tone="acid">
+              <span class="index">04</span>
+              <h3>离线诊断报告</h3>
+              <p>一键下载自包含 HTML，明确标注已测量、已跳过与未测量边界；URL 中的凭据、查询参数与片段会被移除。</p>
+            </article>
+            <article class="feature" data-tone="amber">
+              <span class="index">05</span>
+              <h3>健康轨迹</h3>
+              <p>每轮快照写入本地 JSONL，页面展示最近 40 次健康走势，异常不是孤立的一帧。</p>
+            </article>
+            <article class="feature" data-tone="red">
+              <span class="index">06</span>
+              <h3>本地优先</h3>
+              <p>默认只监听 127.0.0.1，CSP、nosniff、禁止 iframe；不采集凭据，不向外部回传配置。</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" id="preview" aria-labelledby="preview-title">
+          <div class="section-head">
+            <p class="kicker">02 / INTERFACE</p>
+            <h2 id="preview-title">一屏之内，先看结论</h2>
+            <p>总体姿态、四项计数、逐项证据与历史轨迹，都在同一页完成阅读。</p>
+          </div>
+
+          <div class="gallery">
+            <figure class="gallery-main">
+              <img
+                src="assets/dashboard-desktop.png"
+                alt="桌面端看板完整界面"
+                width="1440"
+                height="1600"
+                loading="lazy"
+              >
+              <figcaption class="gallery-caption">
+                <span>DESKTOP / 1440 × 1180</span>
+                <span>真实取样 · 本地替身环境</span>
+              </figcaption>
+            </figure>
+            <figure class="gallery-side">
+              <img
+                src="assets/dashboard-mobile.png"
+                alt="移动端看板界面"
+                width="390"
+                height="1000"
+                loading="lazy"
+              >
+              <figcaption class="gallery-caption">
+                <span>MOBILE</span>
+                <span>390 px</span>
+              </figcaption>
+            </figure>
+          </div>
+        </section>
+
+        <section class="evidence" aria-labelledby="evidence-title">
+          <div>
+            <p class="kicker">03 / EVIDENCE BOUNDARY</p>
+            <h2 id="evidence-title">状态要能解释，</h2>
+            <p style="color: var(--text); font-size: clamp(22px, 3vw, 32px); font-weight: 600; letter-spacing: -0.04em; line-height: 1.1; margin-bottom: 14px;">
+              而不是看起来好看。
+            </p>
+            <p>
+              每一项结果都保留原始证据：延迟、状态码、证书到期时间、错误原因与尝试次数。
+              “失败”就是失败，不会因为重试成功而抹掉曾经发生过的事实。
+            </p>
+          </div>
+          <div class="state-list">
+            <div class="state" data-tone="ok">
+              <i aria-hidden="true"></i><strong>OK</strong>
+              <span>响应正常，且未触及预警阈值。</span>
+            </div>
+            <div class="state" data-tone="warn">
+              <i aria-hidden="true"></i><strong>WARN</strong>
+              <span>延迟或证书接近红线，尚未失效。</span>
+            </div>
+            <div class="state" data-tone="fail">
+              <i aria-hidden="true"></i><strong>FAIL</strong>
+              <span>不可用、超时、握手失败或状态码不符合预期。</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="start" id="start" aria-labelledby="start-title">
+          <div>
+            <p class="kicker">04 / QUICK START</p>
+            <h2 id="start-title" style="font-size: clamp(28px, 3.8vw, 44px);">三步，把事实放到眼前</h2>
+            <ol class="steps">
+              <li><b>确认 Python 3.11+</b><br>不需要 pip 安装任何运行时依赖。</li>
+              <li><b>编辑 checks.json</b><br>写入你的主机、端口、证书域名与 HTTP 健康地址。</li>
+              <li><b>启动并打开浏览器</b><br>默认地址 http://127.0.0.1:8080，每 30 秒自动刷新。</li>
+            </ol>
+          </div>
+
+          <div class="terminal" aria-label="快速开始命令">
+            <div class="terminal-bar">POWERSHELL / SENTINEL</div>
+            <pre><span class="c"># 1. 启动本地看板</span>
+<span class="g">python</span> server.py
+
+<span class="c"># 2. 打开浏览器</span>
+<span class="y">http://127.0.0.1:8080</span>
+
+<span class="c"># 3. 下载本轮离线诊断报告</span>
+<span class="y">http://127.0.0.1:8080/api/report</span>
+
+<span class="c"># 可选：查看当前版本</span>
+<span class="g">python</span> server.py --version</pre>
+          </div>
+        </section>
+
+        <section class="section architecture" aria-labelledby="arch-title">
+          <div class="section-head">
+            <p class="kicker">05 / ARCHITECTURE</p>
+            <h2 id="arch-title">零依赖，但边界清楚</h2>
+            <p>标准库做到足够小，也足够容易审计。</p>
+          </div>
+
+          <div class="arch">
+            <div class="arch-step">
+              <small>INPUT</small>
+              <h3>checks.json</h3>
+              <p>声明式配置：目标、类型、超时、阈值、分组与受限重试。启动时严格校验，拒绝带凭据的 URL。</p>
+            </div>
+            <div class="arch-step">
+              <small>ENGINE</small>
+              <h3>CheckRunnerService</h3>
+              <p>线程池并发执行，每个检查独立超时；失败后按配置有界重试，最终只保留有证据的结论。</p>
+            </div>
+            <div class="arch-step">
+              <small>OUTPUT</small>
+              <h3>看板 / API / 报告</h3>
+              <p>实时页面、只读 API、自包含离线 HTML 三类输出共享同一份快照与脱敏规则。</p>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <footer class="wrap">
+        <span>SENTINEL v0.4.0 · MIT LICENSE</span>
+        <span>Python standard library · no build chain</span>
+        <a href="https://github.com/CiallorZ/ops-health-dashboard">github.com/CiallorZ/ops-health-dashboard ↗</a>
+      </footer>
+    </main>
+  </body>
+</html>

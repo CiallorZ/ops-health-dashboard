@@ -24,7 +24,7 @@ class UiContractTests(unittest.TestCase):
         html = (ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
         self.assertIn('lang="zh-CN"', html)
         self.assertIn("aria-live", html)
-        self.assertIn("v0.3.0", html)
+        self.assertIn("v0.4.0", html)
         self.assertIn("prefers-reduced-motion", (ROOT / "dashboard" / "styles.css").read_text(encoding="utf-8"))
 
 

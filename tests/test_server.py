@@ -4,6 +4,7 @@ import unittest
 import urllib.request
 from tempfile import TemporaryDirectory
 
+from monitor import __version__
 from server import build_server
 
 
@@ -58,6 +59,8 @@ class ServerTests(unittest.TestCase):
         status, headers, body = self.get_json("/api/health")
         self.assertEqual(status, 200)
         self.assertEqual(body["status"], "ok")
+        self.assertEqual(body["version"], __version__)
+        self.assertIn(f"OpsHealthDashboard/{__version__}", headers["Server"])
         self.assertEqual(headers["Content-Security-Policy"].startswith("default-src"), True)
 
     def test_config_exposes_no_secrets(self):

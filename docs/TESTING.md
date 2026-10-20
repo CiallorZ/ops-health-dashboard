@@ -1,0 +1,59 @@
+# 测试与质量门禁
+
+## 依赖
+
+- Python 3.11+
+- Node.js（仅用于 `node --check`）
+- Git
+
+无第三方 Python 运行时依赖，测试不访问公网。
+
+## 必跑门禁
+
+```powershell
+python -m unittest discover -s tests -v
+python -W error::ResourceWarning -m unittest discover -s tests -q
+python -m compileall -q monitor toolbox server.py tests
+node --check dashboard\app.js
+git diff --check
+```
+
+全部通过后，才允许提交。
+
+## 覆盖范围
+
+| 文件 | 关注点 |
+|---|---|
+| `tests/test_checks.py` | HTTP 状态码、跳转、TLS 边界、User-Agent 版本 |
+| `tests/test_config.py` | 默认值、分组、重试边界、凭据拒绝、重复 ID |
+| `tests/test_runner.py` | 缓存、强制刷新、并发去重、受限重试与恢复证据 |
+| `tests/test_server.py` | 健康接口、版本头、404、静态页、报告脱敏 |
+| `tests/test_report.py` | `0` 值渲染、重试证据、旧快照缺省值 |
+| `tests/test_ui_contract.py` | 前端 API 引用、转义、无障碍钩子、版本一致性 |
+
+网络相关测试全部使用本地可控替身或 `unittest.mock`，不依赖公网可用性。
+
+## 手工验收
+
+API / UI 改动需要在非 `8080` 的临时端口启动真实服务：
+
+1. `GET /api/health` 返回当前版本；
+2. 本地成功目标返回 `ok`；
+3. 本地超时目标在超时上限内返回 `fail`；
+4. 配置受限重试的目标显示实际尝试次数与恢复标记；
+5. `/api/report` 可下载且包含证据边界；
+6. 页面无横向溢出，空状态与错误状态可读；
+7. 结束后停止全部临时进程。
+
+## 截图复现
+
+```powershell
+python examples\demo_targets.py --port 18081
+python server.py --port 18080 --config examples\checks.demo.json --data-dir data\demo
+```
+
+连续请求 `/api/status?force=1` 四次：前三次旧端口可用（预警），第四次端口关闭（异常），历史轨迹因此同时包含预警与异常。
+
+## CI
+
+`.github/workflows/ci.yml` 在 `main` 推送与 Pull Request 上运行 Python 3.11 / 3.13 的单元测试与编译检查。

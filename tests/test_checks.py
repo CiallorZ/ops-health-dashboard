@@ -4,6 +4,8 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
+from monitor import __version__
+from monitor.checks import USER_AGENT
 from monitor.checks import CheckExecutionError, _run_http, _run_tls
 from monitor.config import CheckConfig, Thresholds
 
@@ -69,6 +71,18 @@ class ChecksTests(unittest.TestCase):
         with patch("monitor.checks.urllib.request.urlopen", return_value=FakeResponse()):
             result = _run_http(check, Thresholds())
         self.assertEqual(result.to_dict()["group"], "核心服务")
+
+    def test_http_user_agent_tracks_the_running_version(self):
+        check = CheckConfig(
+            id="api", name="API", type="http", target="https://example.com/"
+        )
+        with patch(
+            "monitor.checks.urllib.request.urlopen", return_value=FakeResponse()
+        ) as urlopen:
+            _run_http(check, Thresholds())
+        request = urlopen.call_args.args[0]
+        self.assertEqual(request.get_header("User-agent"), USER_AGENT)
+        self.assertEqual(USER_AGENT, f"ops-health-dashboard/{__version__}")
 
     def test_http_wrong_status_is_failure(self):
         check = CheckConfig(

@@ -24,6 +24,7 @@ from monitor.runner import CheckRunnerService
 PROJECT_ROOT = Path(__file__).resolve().parent
 DEFAULT_DASHBOARD = PROJECT_ROOT / "dashboard"
 STARTED_AT = time.monotonic()
+SERVER_VERSION = f"OpsHealthDashboard/{__version__}"
 
 
 class DashboardServer(ThreadingHTTPServer):
@@ -43,7 +44,7 @@ class DashboardServer(ThreadingHTTPServer):
 
 class DashboardRequestHandler(BaseHTTPRequestHandler):
     server: DashboardServer
-    server_version = "OpsHealthDashboard/0.1"
+    server_version = SERVER_VERSION
     sys_version = ""
 
     def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
@@ -220,6 +221,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--port", type=int, default=8080)
     parser.add_argument("--config", default=str(PROJECT_ROOT / "checks.json"))
     parser.add_argument("--data-dir", default=str(PROJECT_ROOT / "data"))
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"ops-health-dashboard {__version__}",
+    )
     return parser.parse_args(argv)
 
 
