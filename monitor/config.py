@@ -11,6 +11,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 SUPPORTED_TYPES = {"http", "tcp", "tls", "ping"}
+MAX_CHECKS = 200
 HOST_LABEL = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
 
 
@@ -301,6 +302,8 @@ def parse_config(raw: Any) -> DashboardConfig:
     checks_raw = raw.get("checks")
     if not isinstance(checks_raw, list) or not checks_raw:
         raise ConfigError("checks must be a non-empty list")
+    if len(checks_raw) > MAX_CHECKS:
+        raise ConfigError(f"checks must contain at most {MAX_CHECKS} entries")
     checks = tuple(_parse_check(item, index) for index, item in enumerate(checks_raw))
     ids = [check.id for check in checks]
     if len(ids) != len(set(ids)):

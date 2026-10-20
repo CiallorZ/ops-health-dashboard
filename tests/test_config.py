@@ -63,6 +63,22 @@ class ConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ConfigError, "unique"):
             parse_config(raw)
 
+    def test_rejects_excessive_check_count(self):
+        raw = {
+            "version": 1,
+            "checks": [
+                {
+                    "id": f"check-{index}",
+                    "name": f"Check {index}",
+                    "type": "ping",
+                    "target": "127.0.0.1",
+                }
+                for index in range(201)
+            ],
+        }
+        with self.assertRaisesRegex(ConfigError, "at most 200"):
+            parse_config(raw)
+
     def test_rejects_credentials_in_http_url(self):
         raw = json.loads(json.dumps(MINIMAL))
         raw["checks"][0]["target"] = "https://user:secret@example.com/"

@@ -16,7 +16,10 @@ const elements = {
   metricFail: document.querySelector("#metric-fail"),
   metricLatency: document.querySelector("#metric-latency"),
   checksList: document.querySelector("#checks-list"),
+  checksCount: document.querySelector("#checks-count"),
+  checkSearch: document.querySelector("#check-search"),
   trendBars: document.querySelector("#trend-bars"),
+  transitionList: document.querySelector("#transition-list"),
   toast: document.querySelector("#toast"),
   thresholdLatencyWarn: document.querySelector("#threshold-latency-warn"),
   thresholdLatencyFail: document.querySelector("#threshold-latency-fail"),
@@ -26,6 +29,7 @@ const elements = {
 };
 
 let activeFilter = "all";
+let searchQuery = "";
 let latestStatus = null;
 let loading = false;
 let toastTimer = null;
@@ -47,6 +51,11 @@ const statusLabels = {
 
 function formatNumber(value) {
   return Number.isFinite(value) ? String(Math.round(value)) : "--";
+}
+
+function formatPercent(value) {
+  if (!Number.isFinite(value)) return "--";
+  return `${value.toFixed(Number.isInteger(value) ? 0 : 1)}%`;
 }
 
 function formatTime(value) {
@@ -77,6 +86,10 @@ function targetLabel(check) {
     return port ? `${check.target}:${port}` : check.target;
   }
   return check.target;
+}
+
+function checkProvidesOwn(object, key) {
+  return object !== null && Object.prototype.hasOwnProperty.call(object, key);
 }
 
 function scoreFromSummary(summary) {
@@ -130,7 +143,7 @@ function renderSummary(data) {
 
   elements.lastUpdated.textContent = `最近采样 ${formatTime(data.generated_at)}`;
   elements.runDuration.textContent = `${formatNumber(data.duration_ms)} ms`;
-  elements.footerState.textContent = `${total} 项检查 · 本地数据 · 不采集凭据`;
+  elements.footerState.textContent = `${total} 项检查 · 40 轮可追溯 · 不采集凭据`;
 }
 
 function renderCheck(check) {
@@ -141,6 +154,43 @@ function renderCheck(check) {
   const attemptNote = attempts > 1
     ? ` · 第 ${attempts} 次尝试${check.metrics?.recovered_after_retry ? "恢复" : ""}`
     : "";
+  const historyById = latestStatus?.check_history?.checks;
+  const insight = checkProvidesOwn(historyById, check.id) ? historyById[check.id] : null;
+  const heartbeats = Array.isArray(insight?.heartbeats) ? insight.heartbeats : [];
+  const samples = Number(insight?.samples ?? heartbeats.length);
+  const availability = Number.isFinite(insight?.availability_percent)
+    ? insight.availability_percent
+    : null;
+  const averageLatency = Number.isFinite(insight?.average_latency_ms)
+    ? insight.average_latency_ms
+    : null;
+  const tags = Array.isArray(check.tags) ? check.tags.filter((tag) => typeof tag === "string") : [];
+  const tagHtml = tags.length
+    ? `<div class="check-tags">${tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}</div>`
+    : "";
+  const heartbeatHtml = heartbeats.length
+    ? `
+      <div
+        class="heartbeat-strip"
+        role="img"
+        aria-label="${escapeHtml(`${samples} 轮历史，可用率 ${formatPercent(availability)}`)}"
+      >
+        ${heartbeats.map((sample) => {
+          const sampleStatus = ["ok", "warn", "fail"].includes(sample.status)
+            ? sample.status
+            : "unknown";
+          const latency = Number.isFinite(sample.latency_ms)
+            ? ` · ${Math.round(sample.latency_ms)} ms`
+            : "";
+          const label = `${formatTime(sample.at)} · ${statusLabels[sampleStatus] ?? "未知"}${latency}`;
+          return `<span class="heartbeat ${sampleStatus}" title="${escapeHtml(label)}"></span>`;
+        }).join("")}
+      </div>
+    `
+    : '<div class="heartbeat-missing">尚无逐项历史，下一轮采样后开始积累</div>';
+  const averageNote = Number.isFinite(averageLatency)
+    ? `均延迟 ${Math.round(averageLatency)} ms`
+    : "均延迟 --";
   return `
     <article class="check-row" data-status="${escapeHtml(status)}">
       <span class="status-line ${escapeHtml(status)}" aria-hidden="true"></span>
@@ -149,8 +199,16 @@ function renderCheck(check) {
           <strong>${escapeHtml(check.name)}</strong>
           <span class="check-type">${escapeHtml(check.type)}</span>
         </div>
+        ${tagHtml}
         <p class="check-target">${escapeHtml(targetLabel(check))}</p>
         <p class="check-detail">${escapeHtml(check.detail || check.summary)}${escapeHtml(attemptNote)}</p>
+        <div class="check-evidence">
+          <div class="heartbeat-head">
+            <span class="availability">可用率 <strong>${escapeHtml(formatPercent(availability))}</strong></span>
+            <span>${escapeHtml(`${samples} / ${Number(insight?.window ?? 40)} 轮 · ${averageNote}`)}</span>
+          </div>
+          ${heartbeatHtml}
+        </div>
       </div>
       <div class="check-time">
         <strong>${check.latency_ms == null ? "--" : `${Math.round(check.latency_ms)} ms`}</strong>
@@ -162,13 +220,24 @@ function renderCheck(check) {
 
 function renderChecks() {
   const checks = latestStatus?.checks ?? [];
-  const filtered = activeFilter === "all"
-    ? checks
-    : checks.filter((check) => check.status === activeFilter);
+  const query = searchQuery.trim().toLocaleLowerCase("zh-CN");
+  const filtered = checks.filter((check) => {
+    if (activeFilter !== "all" && check.status !== activeFilter) return false;
+    if (!query) return true;
+    const haystack = [
+      check.name,
+      check.target,
+      targetLabel(check),
+      check.group,
+      ...(Array.isArray(check.tags) ? check.tags : []),
+    ].join(" ").toLocaleLowerCase("zh-CN");
+    return haystack.includes(query);
+  });
+  elements.checksCount.textContent = `${filtered.length} / ${checks.length}`;
 
   if (!filtered.length) {
     elements.checksList.innerHTML = checks.length
-      ? '<div class="empty-state">当前筛选下没有记录</div>'
+      ? '<div class="empty-state">没有匹配的检查，试试清除搜索或切换状态。</div>'
       : '<div class="empty-state">没有可展示的检测结果</div>';
     return;
   }
@@ -185,6 +254,38 @@ function renderChecks() {
       ${items.map(renderCheck).join("")}
     </section>
   `).join("");
+}
+
+function renderTransitions() {
+  const events = Array.isArray(latestStatus?.check_history?.events)
+    ? latestStatus.check_history.events
+    : [];
+  if (!events.length) {
+    elements.transitionList.innerHTML =
+      '<div class="transition-empty">历史中尚未记录到状态变化</div>';
+    return;
+  }
+  elements.transitionList.innerHTML = events.map((event) => {
+    const from = ["ok", "warn", "fail"].includes(event.from) ? event.from : "unknown";
+    const to = ["ok", "warn", "fail"].includes(event.to) ? event.to : "unknown";
+    return `
+      <article class="transition-row">
+        <span class="transition-flow" aria-hidden="true">
+          <i class="${escapeHtml(from)}"></i>
+          <span>→</span>
+          <i class="${escapeHtml(to)}"></i>
+        </span>
+        <div class="transition-main">
+          <strong>${escapeHtml(event.name || event.check_id)}</strong>
+          <p>
+            ${escapeHtml(statusLabels[from] ?? "未知")} → ${escapeHtml(statusLabels[to] ?? "未知")}
+            <span>· ${escapeHtml(event.group || "未分组")}</span>
+          </p>
+        </div>
+        <time datetime="${escapeHtml(event.at)}">${escapeHtml(formatTime(event.at))}</time>
+      </article>
+    `;
+  }).join("");
 }
 
 function renderTrend(history) {
@@ -243,11 +344,15 @@ async function loadStatus({ force = false } = {}) {
     renderSummary(data);
     renderChecks();
     renderTrend(data.history);
+    renderTransitions();
     setConnection("ok", "实时");
     if (force) showToast("已刷新全部检测");
   } catch (error) {
     setConnection("fail", "离线");
+    elements.checksCount.textContent = "离线";
     elements.checksList.innerHTML = `<div class="error-state">无法连接本地控制面：${escapeHtml(error.message)}</div>`;
+    elements.transitionList.innerHTML =
+      `<div class="transition-empty is-error">无法读取状态变化：${escapeHtml(error.message)}</div>`;
   } finally {
     loading = false;
     elements.refreshButton.disabled = false;
@@ -262,6 +367,11 @@ document.querySelectorAll(".filter").forEach((button) => {
     });
     renderChecks();
   });
+});
+
+elements.checkSearch.addEventListener("input", () => {
+  searchQuery = elements.checkSearch.value;
+  renderChecks();
 });
 
 elements.refreshButton.addEventListener("click", () => loadStatus({ force: true }));

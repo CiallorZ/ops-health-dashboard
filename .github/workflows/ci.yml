@@ -23,6 +23,11 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Unit tests
         run: python -m unittest discover -s tests -v
+      - name: Unit tests with strict ResourceWarning
+        run: python -W error::ResourceWarning -m unittest discover -s tests -q
       - name: Compile check
-        run: python -m compileall -q monitor server.py
+        run: python -m compileall -q monitor toolbox server.py tests
+      - name: JavaScript syntax
+        if: matrix.python-version == '3.11'
+        run: node --check dashboard/app.js
 

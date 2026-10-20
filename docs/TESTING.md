@@ -26,6 +26,7 @@ git diff --check
 |---|---|
 | `tests/test_checks.py` | HTTP 状态码、跳转、TLS 边界、User-Agent 版本 |
 | `tests/test_config.py` | 默认值、分组、重试边界、凭据拒绝、重复 ID |
+| `tests/test_history.py` | 逐项可用率、延迟聚合、旧历史兼容、事件数量上限 |
 | `tests/test_runner.py` | 缓存、强制刷新、并发去重、受限重试与恢复证据 |
 | `tests/test_server.py` | 健康接口、版本头、404、静态页、报告脱敏 |
 | `tests/test_report.py` | `0` 值渲染、重试证据、旧快照缺省值 |
@@ -42,8 +43,11 @@ API / UI 改动需要在非 `8080` 的临时端口启动真实服务：
 3. 本地超时目标在超时上限内返回 `fail`；
 4. 配置受限重试的目标显示实际尝试次数与恢复标记；
 5. `/api/report` 可下载且包含证据边界；
-6. 页面无横向溢出，空状态与错误状态可读；
-7. 结束后停止全部临时进程。
+6. 每项 heartbeat 数量不超过历史窗口，可用率来自实际采样；
+7. 搜索名称 / 目标 / 分组 / 标签与 `ok / warn / fail` 筛选均生效；
+8. 状态变化事件只在相邻真实状态不同的时候出现；
+9. 桌面与 390 px 移动端无横向溢出，空状态与错误状态可读；
+10. 结束后停止全部临时进程。
 
 ## 截图复现
 
@@ -52,7 +56,7 @@ python examples\demo_targets.py --port 18081
 python server.py --port 18080 --config examples\checks.demo.json --data-dir data\demo
 ```
 
-连续请求 `/api/status?force=1` 四次：前三次旧端口可用（预警），第四次端口关闭（异常），历史轨迹因此同时包含预警与异常。
+连续请求 `/api/status?force=1` 四次：前三次旧端口可用，第四次端口关闭后变为异常。逐项 heartbeat 会同时包含两种状态，并生成一条 `ok → fail` 变化事件。
 
 ## CI
 

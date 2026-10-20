@@ -109,15 +109,34 @@
 
         <div class="workspace-grid">
           <section class="panel checks-panel" aria-labelledby="checks-title">
-            <div class="panel-heading">
+            <div class="panel-heading checks-heading">
               <div>
                 <p class="panel-kicker">LIVE CHECKS</p>
-                <h2 id="checks-title">资产检测</h2>
+                <div class="title-line">
+                  <h2 id="checks-title">资产检测</h2>
+                  <span class="checks-count" id="checks-count">载入中</span>
+                </div>
               </div>
+            </div>
+            <div class="check-toolbar">
+              <label class="search-field" for="check-search">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="11" cy="11" r="6.5"></circle>
+                  <path d="m16 16 4 4"></path>
+                </svg>
+                <input
+                  id="check-search"
+                  type="search"
+                  placeholder="搜索名称、目标、分组或标签"
+                  autocomplete="off"
+                  spellcheck="false"
+                >
+              </label>
               <div class="filter-bar" role="group" aria-label="筛选检测结果">
                 <button class="filter is-active" type="button" data-filter="all">全部</button>
                 <button class="filter" type="button" data-filter="fail">异常</button>
                 <button class="filter" type="button" data-filter="warn">预警</button>
+                <button class="filter" type="button" data-filter="ok">正常</button>
               </div>
             </div>
             <div class="checks-list" id="checks-list" aria-live="polite">
@@ -142,6 +161,19 @@
               <div class="trend-axis">
                 <span>更早</span>
                 <span>现在</span>
+              </div>
+            </section>
+
+            <section class="panel transitions-panel" aria-labelledby="transitions-title">
+              <div class="panel-heading compact">
+                <div>
+                  <p class="panel-kicker">IMPORTANT EVENTS</p>
+                  <h2 id="transitions-title">最近状态变化</h2>
+                </div>
+                <span class="mini-legend"><i class="legend-warn"></i> 仅真实采样</span>
+              </div>
+              <div class="transition-list" id="transition-list" aria-live="polite">
+                <div class="transition-empty">正在读取历史状态</div>
               </div>
             </section>
 
@@ -172,7 +204,7 @@
       </main>
 
       <footer>
-        <span>SENTINEL <b>v0.4.0</b></span>
+        <span>SENTINEL <b>v0.5.0</b></span>
         <span>Zero-dependency / Python standard library</span>
         <span id="footer-state">本地数据 · 不采集凭据</span>
       </footer>

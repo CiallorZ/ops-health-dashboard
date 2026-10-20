@@ -1,17 +1,17 @@
 <div align="center">
 
-<img src="docs/assets/dashboard-desktop.png" alt="Sentinel 运维健康看板：总体状态、检测汇总、资产检测与健康轨迹" width="920">
+<img src="docs/assets/dashboard-desktop.png" alt="Sentinel 运维健康看板：总体状态、每项 heartbeat、可用率、搜索筛选与最近状态变化" width="920">
 
 # Sentinel · 运维健康看板
 
 **把异常，提前看见。**
 
-一个零依赖、默认只监听本机的运维健康看板。ICMP、TCP、TLS 与 HTTP 检测汇入同一条可信时间线。
+一个零依赖、默认只监听本机的运维健康看板。ICMP、TCP、TLS 与 HTTP 检测汇入同一条可信时间线，并为每项资产保留最近 40 轮 heartbeat、可用率与状态变化。
 
 [GitHub Actions](https://github.com/CiallorZ/ops-health-dashboard/actions/workflows/ci.yml)
 · [Python 3.11+](https://www.python.org/)
 · [MIT License](LICENSE)
-· [v0.4.0](VERSION)
+· [v0.5.0](VERSION)
 
 [介绍页](docs/index.html) · [安全边界](docs/SECURITY.md) · [测试说明](docs/TESTING.md) · [发布流程](docs/RELEASE.md) · [路线图](ROADMAP.md)
 
@@ -27,6 +27,7 @@ Sentinel 面向“先自己看见，再等人投诉”的场景：本机或内�
 
 - 失败就是失败，重试恢复也会保留“曾经失败过”的证据；
 - 每项结果都带延迟、状态码、证书天数或错误原因；
+- 每项检查都有紧凑 heartbeat、近 40 轮可用率、标签与最近状态变化；
 - 离线报告会明确标注已测量、已跳过与未测量能力。
 
 ## 效果预览
@@ -35,7 +36,19 @@ Sentinel 面向“先自己看见，再等人投诉”的场景：本机或内�
 |---|---|
 | <img src="docs/assets/dashboard-desktop.png" alt="桌面端看板" width="720"> | <img src="docs/assets/dashboard-mobile.png" alt="移动端看板" width="240"> |
 
-> 截图使用仓库内的 `examples/checks.demo.json` 与 `examples/demo_targets.py` 在本地真实取样：4 项正常、1 项延迟预警、1 项端口失败，且“对账 API”在第 2 次尝试后恢复。
+> 截图使用仓库内的 `examples/checks.demo.json` 与 `examples/demo_targets.py` 在本地真实取样：4 项正常、1 项延迟预警、1 项端口失败；“对账 API”在第 2 次尝试后恢复，旧版端口从正常转为异常，事件列表保留了这次变化。
+
+## 为什么像 Uptime Kuma，但不是 Uptime Kuma
+
+本项目借鉴了 [Uptime Kuma](https://github.com/louislam/uptime-kuma) 已经被验证过的监控信息架构：
+
+- 紧凑的监控列表、逐项 heartbeat 与一眼可读的状态色；
+- 近 N 轮可用率、当前延迟、分组与标签；
+- 搜索和状态筛选；
+- 只展示真实状态变化的 “Important Events” 列表；
+- 桌面列表 + 侧栏、移动端单列的响应式阅读方式。
+
+Sentinel 是独立的 Python 标准库实现，不复制 Uptime Kuma 的 Vue / Socket.IO / 数据库架构，也没有内置账号、通知矩阵或维护窗口。它优先解决“单机、自托管、可审计、默认只监听回环地址”的轻量场景。
 
 ## 介绍页
 
@@ -51,7 +64,9 @@ Sentinel 面向“先自己看见，再等人投诉”的场景：本机或内�
 | 可解释状态 | `ok` / `warn` / `fail`，保留原始错误、延迟、状态码与证书信息 |
 | 受限重试 | 每项可选 `0–2` 次额外尝试；结果记录实际尝试次数与是否重试恢复 |
 | 业务分组 | 按核心业务、遗留系统、外部依赖等分组呈现 |
-| 历史轨迹 | 每轮快照写入本地 JSONL，页面展示最近 40 次健康走势 |
+| 逐项 heartbeat | 每项检查保存最近 40 轮的 `id / status / latency_ms` 精简证据，不重复写入名称、URL 或错误详情 |
+| 可用率与事件 | 页面展示每项近 40 轮可用率；仅当相邻真实采样状态变化时生成 Important Events |
+| 快速定位 | 可按名称、目标、分组或标签搜索，并按 `ok / warn / fail` 筛选 |
 | 离线报告 | `/api/report` 下载自包含 HTML，URL 凭据、查询参数与片段会被移除 |
 | 有界超时 | 每项独立超时，单项故障不会拖垮整个看板 |
 | 安全默认值 | 默认仅监听 `127.0.0.1`；CSP、`nosniff`、禁止 iframe；拒绝带凭据的 URL |
@@ -146,9 +161,12 @@ python server.py --config checks.json --port 8080 --data-dir data
 | `group` | 业务分组，默认 `未分组`，最多 80 个字符 |
 | `timeout_seconds` | 单项超时，范围 `0.2–60` 秒 |
 | `retry_attempts` | 失败后的额外尝试次数，范围 `0–2`，默认 `0`；单项最多执行 3 次 |
+| `tags` | 可选字符串标签，用于展示与搜索 |
 | `enabled` | 设为 `false` 可暂时停用单项 |
 
 > **安全提醒**：不要在 `target`、名称或描述中写入密码、Token、Cookie 或带凭据的 URL。后端会拒绝 URL 内嵌凭据，但配置本身仍应保持干净。
+
+配置最多接受 **200 项检查**。这个上限同时约束单轮快照与历史条目的体积，避免无界放大。
 
 ## API
 
@@ -156,12 +174,41 @@ python server.py --config checks.json --port 8080 --data-dir data
 |---|---|---|
 | `GET` | `/api/health` | 进程存活与版本，不触发资产检测 |
 | `GET` | `/api/status` | 获取缓存快照；`?force=1` 强制重新检测 |
-| `GET` | `/api/history?limit=40` | 读取历史摘要 |
+| `GET` | `/api/history?limit=40` | 读取有界历史；新条目包含精简的逐项检查记录 |
 | `GET` | `/api/config` | 只读配置，不含秘密 |
 | `GET` | `/api/report` | 下载当前快照的离线 HTML 报告 |
 | `POST` | `/api/refresh` | 强制刷新并返回最新快照 |
 
-`/api/status` 默认缓存 8 秒，避免多标签页制造重复检测；`force=1` 与 `POST /api/refresh` 会绕过缓存。
+`/api/status` 默认缓存 8 秒，避免多标签页制造重复检测；`force=1` 与 `POST /api/refresh` 会绕过缓存。响应中的 `history` 是整轮摘要，`check_history` 提供逐项 heartbeat、可用率、平均延迟与最近状态变化：
+
+```json
+{
+  "check_history": {
+    "window": 40,
+    "checks": {
+      "api": {
+        "samples": 12,
+        "availability_percent": 91.7,
+        "average_latency_ms": 48.2,
+        "heartbeats": [
+          {"status": "ok", "latency_ms": 32.1, "at": "2026-10-21T00:00:00Z"}
+        ]
+      }
+    },
+    "events": [
+      {
+        "check_id": "api",
+        "name": "生产 API",
+        "from": "fail",
+        "to": "ok",
+        "at": "2026-10-21T00:05:00Z"
+      }
+    ]
+  }
+}
+```
+
+可用率定义是“样本中非 `fail` 的比例”，`warn` 仍算可达但仍会显式标黄；它不是 SLA、时间加权可用率或持续采样承诺。旧版本留下的、没有 `checks` 字段的 JSONL 行仍可读取，只是不参与逐项计算。
 
 ## 架构
 
@@ -175,6 +222,7 @@ CheckRunnerService
     ├── /api/*           只读 API
     ├── /api/report      自包含离线 HTML
     └── data/history.jsonl
+          └── 每轮摘要 + 精简逐项 heartbeat
 ```
 
 目录：
@@ -209,7 +257,7 @@ node --check dashboard\app.js
 git diff --check
 ```
 
-CI 在 Python 3.11 与 3.13 上运行同一套单元测试与编译检查。测试覆盖配置拒绝路径、HTTP/TLS 边界、并发刷新去重、强制刷新语义、受限重试、历史持久化、报告脱敏与 HTTP 安全响应头。
+CI 在 Python 3.11 与 3.13 上运行同一套单元测试与编译检查。测试覆盖配置拒绝路径、HTTP/TLS 边界、并发刷新去重、强制刷新语义、受限重试、逐项 heartbeat 聚合、旧历史兼容、状态变化事件、报告脱敏与 HTTP 安全响应头。
 
 详细说明见 [docs/TESTING.md](docs/TESTING.md)。
 
@@ -248,7 +296,7 @@ python examples\demo_targets.py --port 18081
 python server.py --port 18080 --config examples\checks.demo.json --data-dir data\demo
 ```
 
-打开 <http://127.0.0.1:18080>，连续刷新或访问 `/api/status?force=1` 四次，即可得到“预警 → 异常”的真实历史轨迹。
+打开 <http://127.0.0.1:18080>，连续访问 `/api/status?force=1` 四次或更多。前几次旧端口可用，随后关闭；页面会积累逐项 heartbeat，并把 `ok → fail` 写入“最近状态变化”。“对账 API”的受限重试恢复也会保留在详情中。
 
 ## Roadmap
 
@@ -256,9 +304,10 @@ python server.py --port 18080 --config examples\checks.demo.json --data-dir data
 - [x] `v0.2` 可读性：业务分组、自包含离线报告与 URL 脱敏。
 - [x] `v0.3` 可信度：受限重试、实际尝试次数与恢复证据。
 - [x] `v0.4` 可交付性：介绍页、截图、演示替身、维护文档与版本一致性修复。
-- [ ] `v0.5` 告警：Webhook / 邮件事件，带去重与冷却。
-- [ ] `v0.6` 趋势：按天聚合、可用率与证书到期日历。
-- [ ] `v0.7` 多用户：只读分享、反向代理鉴权示例。
+- [x] `v0.5` 观测上下文：逐项 heartbeat、可用率、标签搜索、状态筛选与 Important Events。
+- [ ] `v0.6` 告警：Webhook 事件，带去重、冷却与本地投递测试。
+- [ ] `v0.7` 长期趋势：按天聚合、延迟分位数、证书到期日历与归档。
+- [ ] `v0.8` 多用户：只读分享、反向代理鉴权示例。
 
 详见 [ROADMAP.md](ROADMAP.md)。
 

@@ -4,6 +4,29 @@ All notable changes are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-10-21
+
+### Added
+
+- Per-check history records now store bounded `id`, `status`, and
+  `latency_ms` evidence without duplicating names, targets, URLs, or error
+  details.
+- The dashboard renders the last 40 heartbeats, availability, average latency,
+  labels, search, and `ok` / `warn` / `fail` filtering for each check.
+- `check_history` snapshots now include per-check statistics and an Important
+  Events list generated only from real adjacent status changes.
+- The UI and README borrow the compact monitor/heartbeat information
+  architecture proven by Uptime Kuma while keeping Sentinel's Python standard
+  library implementation and local-only boundary.
+
+### Changed
+
+- Configuration now accepts at most 200 checks so snapshots and history cannot
+  grow without a fixed upper bound.
+- Legacy history rows without per-check records remain readable and contribute
+  no invented samples.
+- Refreshed README, landing page, and desktop/mobile screenshots for v0.5.0.
+
 ## [0.4.0] - 2026-10-21
 
 ### Added

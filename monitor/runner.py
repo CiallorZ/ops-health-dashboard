@@ -12,7 +12,7 @@ from typing import Callable
 
 from .checks import CheckResult, run_check
 from .config import CheckConfig, DashboardConfig, Thresholds
-from .history import HistoryStore
+from .history import HistoryStore, summarize_check_history
 
 CheckRunner = Callable[[CheckConfig, Thresholds], CheckResult]
 
@@ -82,6 +82,18 @@ class CheckRunnerService:
                     "generated_at": run_at,
                     "duration_ms": snapshot["duration_ms"],
                     **summary,
+                    "checks": [
+                        {
+                            "id": result.id,
+                            "status": result.status,
+                            "latency_ms": (
+                                round(result.latency_ms, 1)
+                                if result.latency_ms is not None
+                                else None
+                            ),
+                        }
+                        for result in results
+                    ],
                 }
             )
             return self._with_history(snapshot, history_limit)
@@ -139,8 +151,14 @@ class CheckRunnerService:
         }
 
     def _with_history(self, snapshot: dict, history_limit: int) -> dict:
+        history = self.history.recent(history_limit)
         return {
             **snapshot,
-            "history": self.history.recent(history_limit),
+            "history": history,
+            "check_history": summarize_check_history(
+                history,
+                snapshot.get("checks", []),
+                limit=history_limit,
+            ),
         }
 

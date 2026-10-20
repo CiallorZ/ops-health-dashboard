@@ -49,6 +49,19 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(first["summary"]["ok"], 2)
         self.assertEqual(len(second["history"]), 2)
         self.assertEqual(second["history"][-1]["run_id"], second["run_id"])
+        self.assertEqual(
+            second["history"][-1]["checks"],
+            [
+                {"id": "a", "status": "ok", "latency_ms": 12.5},
+                {"id": "b", "status": "ok", "latency_ms": 12.5},
+            ],
+        )
+        self.assertEqual(second["check_history"]["checks"]["a"]["samples"], 2)
+        self.assertEqual(
+            second["check_history"]["checks"]["a"]["availability_percent"],
+            100.0,
+        )
+        self.assertNotIn("target", second["history"][-1]["checks"][0])
 
     def test_cache_reuses_snapshot(self):
         with TemporaryDirectory() as directory:
@@ -171,6 +184,35 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(result["status"], "fail")
         self.assertEqual(result["metrics"]["attempts"], 3)
         self.assertFalse(result["metrics"]["recovered_after_retry"])
+
+    def test_check_history_tracks_recovery_transition(self):
+        calls = 0
+
+        def changing_check(check, thresholds):
+            nonlocal calls
+            calls += 1
+            result = fake_check(check, thresholds)
+            result.status = "fail" if calls == 1 else "ok"
+            return result
+
+        config = DashboardConfig(
+            version=1,
+            thresholds=Thresholds(),
+            checks=(CheckConfig(id="api", name="API", type="ping", target="127.0.0.1"),),
+        )
+        with TemporaryDirectory() as directory:
+            runner = CheckRunnerService(
+                config,
+                HistoryStore(directory),
+                cache_seconds=0,
+                check_runner=changing_check,
+            )
+            first = runner.get_snapshot(force=True)
+            second = runner.get_snapshot(force=True)
+        self.assertEqual(first["check_history"]["checks"]["api"]["samples"], 1)
+        self.assertEqual(second["check_history"]["checks"]["api"]["samples"], 2)
+        self.assertEqual(second["check_history"]["events"][0]["from"], "fail")
+        self.assertEqual(second["check_history"]["events"][0]["to"], "ok")
 
 
 if __name__ == "__main__":

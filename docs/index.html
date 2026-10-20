@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#080d10">
     <meta
       name="description"
-      content="Sentinel 是一个零依赖、默认只监听本机的运维健康看板：ICMP、TCP、TLS 与 HTTP 检测汇入同一条可信时间线。"
+      content="Sentinel 是一个零依赖、默认只监听本机的运维健康看板：四类检测、逐项 heartbeat、可用率、搜索与真实状态变化。"
     >
     <title>Sentinel · 本地优先的运维健康看板</title>
     <link
@@ -966,11 +966,11 @@
       <div class="wrap">
         <section class="hero" aria-labelledby="title">
           <div class="hero-copy">
-            <p class="kicker"><span class="dot" aria-hidden="true"></span> LOCAL-FIRST OBSERVABILITY · v0.4.0</p>
+            <p class="kicker"><span class="dot" aria-hidden="true"></span> LOCAL-FIRST OBSERVABILITY · v0.5.0</p>
             <h1 id="title">把异常<br><em>提前看见</em><span class="period">。</span></h1>
             <p class="lead">
               ICMP、TCP、TLS 与 HTTP 检测汇入同一条实时时间线。
-              没有演示模式，没有伪造成功率——你看到的就是当前环境正在发生的事实。
+              每项资产拥有最近 40 轮 heartbeat、可用率与真实状态变化，没有演示模式，也没有伪造成功率。
             </p>
             <div class="cta">
               <a class="btn primary" href="#start">5 分钟启动 →</a>
@@ -988,17 +988,17 @@
               <span class="shot-scan" aria-hidden="true"></span>
               <img
                 src="assets/dashboard-desktop.png"
-                alt="Sentinel 看板桌面截图：总体状态、检测汇总、资产检测列表与近期健康轨迹"
-                width="1440"
-                height="1600"
+                alt="Sentinel 看板桌面截图：总体状态、逐项 heartbeat、可用率、搜索筛选与状态变化"
+                width="1425"
+                height="1994"
               >
             </div>
             <div class="shot-mobile">
               <img
                 src="assets/dashboard-mobile.png"
                 alt="Sentinel 看板移动端截图"
-                width="390"
-                height="1000"
+                width="375"
+                height="3374"
               >
             </div>
           </div>
@@ -1012,14 +1012,18 @@
             <span><s>● FAIL</s> 旧版任务端口 · 拒绝连接</span>
             <span><b>↻ RETRY</b> 对账 API · 第 2 次恢复</span>
             <span>REPORT / 自包含 HTML</span>
-            <span>HISTORY / 最近 40 次</span>
+            <span>HEARTBEAT / 每项最近 40 轮</span>
+            <span>SEARCH / 名称 · 目标 · 分组 · 标签</span>
+            <span><b>EVENT</b> 旧版任务端口 · OK → FAIL</span>
             <span><b>● OK</b> 控制面 API · 12 ms</span>
             <span><b>● OK</b> 本机回环 ICMP</span>
             <span><i>● WARN</i> 商品目录 API · 1.2 s</span>
             <span><s>● FAIL</s> 旧版任务端口 · 拒绝连接</span>
             <span><b>↻ RETRY</b> 对账 API · 第 2 次恢复</span>
             <span>REPORT / 自包含 HTML</span>
-            <span>HISTORY / 最近 40 次</span>
+            <span>HEARTBEAT / 每项最近 40 轮</span>
+            <span>SEARCH / 名称 · 目标 · 分组 · 标签</span>
+            <span><b>EVENT</b> 旧版任务端口 · OK → FAIL</span>
           </div>
         </div>
 
@@ -1027,7 +1031,7 @@
           <div class="section-head">
             <p class="kicker">01 / CAPABILITIES</p>
             <h2 id="features-title">六件事，都围绕“可信”</h2>
-            <p>不追求大而全。只把运维每天都要回答的几个问题，做扎实、做透明。</p>
+            <p>借鉴 Uptime Kuma 的监控列表与 heartbeat 信息架构，只做本地运维真正需要的几个闭环。</p>
           </div>
 
           <div class="feature-grid">
@@ -1043,8 +1047,8 @@
             </article>
             <article class="feature" data-tone="acid">
               <span class="index">03</span>
-              <h3>业务分组</h3>
-              <p>按核心业务、遗留系统、外部依赖分组呈现，先看最重要的那一组。</p>
+              <h3>Monitor 式快速定位</h3>
+              <p>业务分组、标签、名称 / 目标搜索与状态筛选共同工作，先看最该处置的那一项。</p>
             </article>
             <article class="feature" data-tone="acid">
               <span class="index">04</span>
@@ -1053,8 +1057,8 @@
             </article>
             <article class="feature" data-tone="amber">
               <span class="index">05</span>
-              <h3>健康轨迹</h3>
-              <p>每轮快照写入本地 JSONL，页面展示最近 40 次健康走势，异常不是孤立的一帧。</p>
+              <h3>Heartbeat 与变化事件</h3>
+              <p>每项保存最近 40 轮精简状态与延迟，展示可用率；只有相邻真实采样变化时才记录 Important Event。</p>
             </article>
             <article class="feature" data-tone="red">
               <span class="index">06</span>
@@ -1068,7 +1072,7 @@
           <div class="section-head">
             <p class="kicker">02 / INTERFACE</p>
             <h2 id="preview-title">一屏之内，先看结论</h2>
-            <p>总体姿态、四项计数、逐项证据与历史轨迹，都在同一页完成阅读。</p>
+            <p>总体姿态、四项计数、每项 heartbeat、可用率、搜索、筛选与最近事件，都在同一页完成阅读。</p>
           </div>
 
           <div class="gallery">
@@ -1076,21 +1080,21 @@
               <img
                 src="assets/dashboard-desktop.png"
                 alt="桌面端看板完整界面"
-                width="1440"
-                height="1600"
+                width="1425"
+                height="1994"
                 loading="lazy"
               >
               <figcaption class="gallery-caption">
-                <span>DESKTOP / 1440 × 1180</span>
-                <span>真实取样 · 本地替身环境</span>
+                <span>DESKTOP / 1440 PX</span>
+                <span>真实取样 · 9 轮 heartbeat · 本地替身环境</span>
               </figcaption>
             </figure>
             <figure class="gallery-side">
               <img
                 src="assets/dashboard-mobile.png"
                 alt="移动端看板界面"
-                width="390"
-                height="1000"
+                width="375"
+                height="3374"
                 loading="lazy"
               >
               <figcaption class="gallery-caption">
@@ -1110,7 +1114,8 @@
             </p>
             <p>
               每一项结果都保留原始证据：延迟、状态码、证书到期时间、错误原因与尝试次数。
-              “失败”就是失败，不会因为重试成功而抹掉曾经发生过的事实。
+              “失败”就是失败，不会因为重试成功而抹掉曾经发生过的事实。可用率是“最近窗口内非 fail 样本占比”，
+              明确区别于 SLA 或时间加权统计。
             </p>
           </div>
           <div class="state-list">
@@ -1167,24 +1172,24 @@
             <div class="arch-step">
               <small>INPUT</small>
               <h3>checks.json</h3>
-              <p>声明式配置：目标、类型、超时、阈值、分组与受限重试。启动时严格校验，拒绝带凭据的 URL。</p>
+              <p>声明式配置：目标、类型、超时、阈值、分组、标签与受限重试；最多 200 项，启动时严格校验并拒绝带凭据的 URL。</p>
             </div>
             <div class="arch-step">
               <small>ENGINE</small>
               <h3>CheckRunnerService</h3>
-              <p>线程池并发执行，每个检查独立超时；失败后按配置有界重试，最终只保留有证据的结论。</p>
+              <p>线程池并发执行，每个检查独立超时；失败后按配置有界重试，并把每轮精简状态写入有界历史。</p>
             </div>
             <div class="arch-step">
               <small>OUTPUT</small>
               <h3>看板 / API / 报告</h3>
-              <p>实时页面、只读 API、自包含离线 HTML 三类输出共享同一份快照与脱敏规则。</p>
+              <p>实时页面、只读 API、自包含离线 HTML 共享同一份快照；heartbeat 与事件只来自真实采样。</p>
             </div>
           </div>
         </section>
       </div>
 
       <footer class="wrap">
-        <span>SENTINEL v0.4.0 · MIT LICENSE</span>
+        <span>SENTINEL v0.5.0 · MIT LICENSE</span>
         <span>Python standard library · no build chain</span>
         <a href="https://github.com/CiallorZ/ops-health-dashboard">github.com/CiallorZ/ops-health-dashboard ↗</a>
       </footer>
