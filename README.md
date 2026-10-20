@@ -37,6 +37,12 @@ Sentinel 面向“先自己看见，再等人投诉”的场景：本机或内�
 
 > 截图使用仓库内的 `examples/checks.demo.json` 与 `examples/demo_targets.py` 在本地真实取样：4 项正常、1 项延迟预警、1 项端口失败，且“对账 API”在第 2 次尝试后恢复。
 
+## 介绍页
+
+[![Sentinel 介绍页](docs/assets/landing-desktop.png)](docs/index.html)
+
+介绍页采用自包含 HTML，可直接本地打开，也可作为 GitHub Pages 的静态入口。发布前请先确认仓库 Pages 设置；本仓库不会自动部署线上站点。
+
 ## 核心能力
 
 | 能力 | 说明 |
@@ -246,11 +252,13 @@ python server.py --port 18080 --config examples\checks.demo.json --data-dir data
 
 ## Roadmap
 
-- [x] `v0.1` 基线：四类检测、实时看板、历史、CI、Docker。
-- [x] `v0.2` 可用性：分组、离线报告、受限重试。
-- [ ] `v0.3` 告警：Webhook / 邮件事件，带去重与冷却。
-- [ ] `v0.4` 趋势：按天聚合、可用率与证书到期日历。
-- [ ] `v0.5` 多用户：只读分享、反向代理鉴权示例。
+- [x] `v0.1` 基线：四类检测、实时看板、历史、CI、Docker 与 Windows 常驻。
+- [x] `v0.2` 可读性：业务分组、自包含离线报告与 URL 脱敏。
+- [x] `v0.3` 可信度：受限重试、实际尝试次数与恢复证据。
+- [x] `v0.4` 可交付性：介绍页、截图、演示替身、维护文档与版本一致性修复。
+- [ ] `v0.5` 告警：Webhook / 邮件事件，带去重与冷却。
+- [ ] `v0.6` 趋势：按天聚合、可用率与证书到期日历。
+- [ ] `v0.7` 多用户：只读分享、反向代理鉴权示例。
 
 详见 [ROADMAP.md](ROADMAP.md)。
 
