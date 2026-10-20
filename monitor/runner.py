@@ -55,8 +55,10 @@ class CheckRunnerService:
             if self._cached is not None:
                 age = time.monotonic() - self._cached_at
                 # A snapshot created while this request waited on the lock is
-                # already fresh enough to satisfy it, even with cache disabled.
-                if age < self.cache_seconds or self._cached_at >= request_started:
+                # already fresh enough to satisfy it, even a forced refresh.
+                if self._cached_at >= request_started:
+                    return self._with_history(self._cached, history_limit)
+                if not force and age < self.cache_seconds:
                     return self._with_history(self._cached, history_limit)
 
             started = time.perf_counter()
