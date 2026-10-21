@@ -71,6 +71,7 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
                     "version": __version__,
                     "uptime_seconds": round(time.monotonic() - STARTED_AT, 1),
                     "scheduler": self.server.scheduler.status(),
+                    "retention": self.server.runner.history.stats(),
                 },
             )
             return
@@ -160,6 +161,7 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             "automation": {
                 "scheduler": self.server.scheduler.status(),
                 "alerts": self.server.runner.alert_status(limit=12),
+                "retention": self.server.runner.history.stats(),
             },
         }
 

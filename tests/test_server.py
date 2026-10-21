@@ -136,6 +136,25 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(body["thresholds"]["tls_warn_days"], 30)
         self.assertEqual(body["thresholds"]["tls_fail_days"], 7)
 
+    def test_health_and_status_expose_history_retention_bounds(self):
+        _, _, health = self.get_json("/api/health")
+        retention = health["retention"]
+        self.assertGreater(retention["max_file_bytes"], 0)
+        self.assertGreaterEqual(retention["max_archive_files"], 0)
+        self.assertGreater(retention["max_total_bytes"], retention["max_file_bytes"])
+        self.assertIsInstance(retention["archives"], list)
+        self.assertFalse(retention["truncated"])
+
+        _, _, status = self.get_json("/api/status?force=1")
+        status_retention = status["automation"]["retention"]
+        self.assertEqual(
+            status_retention["max_file_bytes"], retention["max_file_bytes"]
+        )
+        self.assertGreaterEqual(status_retention["current_bytes"], retention["current_bytes"])
+        self.assertLessEqual(
+            status_retention["total_bytes"], status_retention["max_total_bytes"]
+        )
+
     def test_certificates_endpoint_hides_metrics_from_non_tls_checks(self):
         self.server.runner.get_snapshot = lambda **_kwargs: {
             "generated_at": "2026-10-21T00:00:00Z",

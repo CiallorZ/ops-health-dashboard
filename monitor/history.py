@@ -17,6 +17,14 @@ MAX_TRANSITION_EVENTS = 8
 MAX_TREND_DAYS = 30
 MAX_TREND_ITEMS = 2000
 
+# On-disk bounds. A single history file may not grow past ``max_file_bytes``;
+# older runs are rotated into a fixed number of archives so the total
+# footprint stays bounded even on a host that never cleans ``data/``.
+DEFAULT_MAX_HISTORY_BYTES = 4 * 1024 * 1024
+DEFAULT_MAX_ARCHIVE_FILES = 2
+DEFAULT_MAX_LOAD_LINES = 5000
+DEFAULT_MAX_MEMORY_ITEMS = 240
+
 LATENCY_BUCKETS: tuple[float, ...] = (
     10.0,
     25.0,
@@ -324,23 +332,90 @@ def summarize_history_trends(
 
 
 class HistoryStore:
-    def __init__(self, data_dir: str | Path, max_memory: int = 240) -> None:
+    """Append-only JSONL history with bounded memory, disk size, and archives.
+
+    Rotation only ever moves files inside ``data_dir``. When a write would
+    exceed the byte budget, the current file becomes ``history.1.jsonl`` and
+    the previous archives shift down; anything past ``max_archive_files`` is
+    removed. The newest runs are therefore always retained.
+    """
+
+    def __init__(
+        self,
+        data_dir: str | Path,
+        max_memory: int = DEFAULT_MAX_MEMORY_ITEMS,
+        *,
+        max_file_bytes: int = DEFAULT_MAX_HISTORY_BYTES,
+        max_archive_files: int = DEFAULT_MAX_ARCHIVE_FILES,
+        max_load_lines: int = DEFAULT_MAX_LOAD_LINES,
+    ) -> None:
         self.data_dir = Path(data_dir)
         self.path = self.data_dir / "history.jsonl"
-        self.max_memory = max_memory
+        self.max_memory = max(1, int(max_memory))
+        self.max_file_bytes = max(1024, int(max_file_bytes))
+        self.max_archive_files = max(0, int(max_archive_files))
+        self.max_load_lines = max(1, int(max_load_lines))
         self._lock = threading.Lock()
-        self._items: deque[dict[str, Any]] = deque(maxlen=max_memory)
+        self._items: deque[dict[str, Any]] = deque(maxlen=self.max_memory)
+        self._truncated = False
+        self._prepare_files()
         self._load()
 
-    def _load(self) -> None:
-        if not self.path.exists():
-            return
+    # ------------------------------------------------------------------ paths
+    def _archive_path(self, index: int) -> Path:
+        return self.data_dir / f"history.{index}.jsonl"
+
+    def _archive_paths(self) -> list[Path]:
+        """Return existing archives from newest (1) to oldest."""
+        paths: list[Path] = []
+        for index in range(1, self.max_archive_files + 1):
+            path = self._archive_path(index)
+            if path.is_file():
+                paths.append(path)
+        return paths
+
+    def _size(self, path: Path) -> int:
         try:
-            with self.path.open("r", encoding="utf-8") as handle:
-                lines = deque(handle, maxlen=self.max_memory)
+            return path.stat().st_size
         except OSError:
-            return
-        for line in lines:
+            return 0
+
+    # ------------------------------------------------------------------- load
+    def _tail_lines(self, path: Path) -> list[str]:
+        """Read at most ``max_file_bytes`` from the end of one history file."""
+        try:
+            size = self._size(path)
+            if not size:
+                return []
+            with path.open("rb") as handle:
+                if size > self.max_file_bytes:
+                    # Drop the first partial line so JSON stays parseable.
+                    handle.seek(size - self.max_file_bytes)
+                    handle.readline()
+                payload = handle.read(self.max_file_bytes)
+        except OSError:
+            return []
+        return payload.decode("utf-8", errors="replace").splitlines()
+
+    def _load(self) -> None:
+        """Load newest-bounded history across the current file and archives."""
+        files = list(reversed(self._archive_paths())) + [self.path]
+        retained: deque[str] = deque(maxlen=self.max_load_lines)
+        total_lines = 0
+        for path in files:
+            if not path.is_file():
+                continue
+            if self._size(path) > self.max_file_bytes:
+                # Part of the file is unreadable by design; say so instead of
+                # presenting the surviving tail as complete history.
+                self._truncated = True
+            lines = self._tail_lines(path)
+            total_lines += len(lines)
+            retained.extend(lines)
+        if total_lines > self.max_load_lines:
+            self._truncated = True
+
+        for line in retained:
             try:
                 item = json.loads(line)
             except json.JSONDecodeError:
@@ -348,19 +423,132 @@ class HistoryStore:
             if isinstance(item, dict):
                 self._items.append(item)
 
+    # --------------------------------------------------------------- rotation
+    def _remove(self, path: Path) -> bool:
+        """Delete a history file only when it resolves inside ``data_dir``."""
+        try:
+            root = self.data_dir.resolve()
+            resolved = path.resolve()
+            resolved.relative_to(root)
+        except (OSError, ValueError):
+            return False
+        try:
+            resolved.unlink()
+            return True
+        except OSError:
+            return False
+
+    def _rotate_locked(self) -> bool:
+        """Move the current file into the bounded archive chain."""
+        if not self.path.is_file() or self._size(self.path) == 0:
+            return False
+        if self.max_archive_files == 0:
+            self._truncated = True
+            return self._remove(self.path)
+        try:
+            # Dropping the oldest archive is real data loss, so report it.
+            if self._remove(self._archive_path(self.max_archive_files)):
+                self._truncated = True
+            for index in range(self.max_archive_files - 1, 0, -1):
+                older = self._archive_path(index)
+                if older.is_file():
+                    older.replace(self._archive_path(index + 1))
+            self.path.replace(self._archive_path(1))
+        except OSError:
+            return False
+        return True
+
+    def _compact_locked(self, path: Path) -> None:
+        """Rewrite an oversized file down to its newest complete lines."""
+        if self._size(path) <= self.max_file_bytes:
+            return
+        self._truncated = True
+        lines = self._tail_lines(path)
+        if not lines:
+            self._remove(path)
+            return
+        # ``_tail_lines`` can end on a partial record and re-encoding may shift
+        # the byte count, so trim from the front until the rewrite really fits.
+        while lines:
+            payload = ("\n".join(lines) + "\n").encode("utf-8")
+            if len(payload) <= self.max_file_bytes:
+                break
+            lines.pop(0)
+        if not lines:
+            self._remove(path)
+            return
+        temporary = path.with_name(path.name + ".tmp")
+        try:
+            temporary.write_bytes(payload)
+            temporary.replace(path)
+        except OSError:
+            try:
+                temporary.unlink()
+            except OSError:
+                pass
+
+    def _prepare_files(self) -> None:
+        """Bound every existing file before anything is loaded or appended."""
+        with self._lock:
+            self._compact_locked(self.path)
+            for path in self._archive_paths():
+                self._compact_locked(path)
+            # A file that was already at the limit becomes archive #1 so the
+            # next run starts from an empty current file.
+            if self._size(self.path) >= self.max_file_bytes:
+                self._rotate_locked()
+
+    # ------------------------------------------------------------------ write
     def append(self, item: dict[str, Any]) -> None:
         with self._lock:
             self._items.append(item)
             self.data_dir.mkdir(parents=True, exist_ok=True)
+            payload = (json.dumps(item, ensure_ascii=False) + "\n").encode("utf-8")
+            # Rotate before writing so a completed file never sits above the
+            # cap waiting for the next run to notice.
+            if (
+                self._size(self.path) > 0
+                and self._size(self.path) + len(payload) > self.max_file_bytes
+            ):
+                self._rotate_locked()
             try:
                 with self.path.open("a", encoding="utf-8") as handle:
-                    handle.write(json.dumps(item, ensure_ascii=False) + "\n")
+                    handle.write(payload.decode("utf-8"))
             except OSError:
                 # History is useful, but a read-only disk must not break checks.
-                pass
+                return
+            if self._size(self.path) > self.max_file_bytes:
+                # A single oversized record is trimmed to its newest lines.
+                self._compact_locked(self.path)
+            elif self._size(self.path) >= self.max_file_bytes:
+                self._rotate_locked()
 
     def recent(self, limit: int = 40) -> list[dict[str, Any]]:
         bounded = max(1, min(int(limit), self.max_memory))
         with self._lock:
             return list(self._items)[-bounded:]
+
+    # ------------------------------------------------------------------ stats
+    def stats(self) -> dict[str, Any]:
+        """Report the real on-disk footprint without touching any file."""
+        with self._lock:
+            current_bytes = self._size(self.path)
+            archives = [
+                {"name": path.name, "bytes": self._size(path)}
+                for path in self._archive_paths()
+            ]
+            max_total = self.max_file_bytes * (1 + self.max_archive_files)
+            total = current_bytes + sum(item["bytes"] for item in archives)
+            payload = {
+                "current_bytes": current_bytes,
+                "max_file_bytes": self.max_file_bytes,
+                "archives": archives,
+                "max_archive_files": self.max_archive_files,
+                "total_bytes": total,
+                "max_total_bytes": max_total,
+                "loaded_lines": len(self._items),
+                "max_load_lines": self.max_load_lines,
+                "truncated": self._truncated,
+            }
+            return payload
 

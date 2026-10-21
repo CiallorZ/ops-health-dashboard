@@ -4,6 +4,29 @@ All notable changes are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.0] - 2026-10-21
+
+### Added
+
+- `history.jsonl` now has hard on-disk bounds: a 4 MiB current file, two
+  rotated archives, and a 5000-line load ceiling. Rotation stays inside the
+  data directory and always keeps the newest runs.
+- `GET /api/health` and `automation.retention` in `/api/status` report the
+  real footprint: current bytes, archive list, total bytes, configured caps,
+  loaded lines, and whether older samples were truncated.
+- The dashboard policy panel shows history usage against the cap, the number
+  of archives, and an explicit "已截断" state when older samples were dropped.
+- Oversized or malformed history files are compacted to their newest complete
+  lines at startup instead of being trusted whole or crashing the service.
+
+### Security
+
+- Archive rotation resolves every path inside the configured data directory
+  before deleting or replacing anything, so a crafted file name cannot reach
+  outside `data/`.
+- Truncation is reported as a fact rather than hidden: trends keep computing
+  only from samples that still exist on disk.
+
 ## [0.8.0] - 2026-10-21
 
 ### Added

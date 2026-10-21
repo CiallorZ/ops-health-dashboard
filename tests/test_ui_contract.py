@@ -43,6 +43,18 @@ class UiContractTests(unittest.TestCase):
         self.assertIn('id="certificate-counts"', html)
         self.assertIn('id="certificate-tracked"', html)
 
+    def test_retention_panel_surfaces_history_bounds(self):
+        javascript = (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
+        html = (ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("function formatBytes", javascript)
+        self.assertIn("function renderRetention", javascript)
+        self.assertIn("automation.retention", javascript)
+        self.assertIn("已截断", javascript)
+        self.assertIn('id="retention-state"', html)
+        self.assertIn('id="retention-usage"', html)
+        self.assertIn('id="retention-archives"', html)
+        self.assertIn('id="retention-note"', html)
+
     def test_document_has_accessibility_hooks(self):
         html = (ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
         self.assertIn('lang="zh-CN"', html)

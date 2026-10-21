@@ -245,14 +245,17 @@
                   <p class="panel-kicker">POLICY</p>
                   <h2 id="config-title">当前阈值</h2>
                 </div>
+                <span class="mini-legend" id="retention-state">读取中</span>
               </div>
               <dl class="threshold-list">
                 <div><dt>延迟预警</dt><dd id="threshold-latency-warn">--</dd></div>
                 <div><dt>延迟失败</dt><dd id="threshold-latency-fail">--</dd></div>
                 <div><dt>证书预警</dt><dd id="threshold-tls-warn">--</dd></div>
                 <div><dt>证书失败</dt><dd id="threshold-tls-fail">--</dd></div>
+                <div><dt>历史占用</dt><dd id="retention-usage">--</dd></div>
+                <div><dt>历史归档</dt><dd id="retention-archives">--</dd></div>
               </dl>
-              <p class="config-note">修改 <code>checks.json</code> 后重启服务即可应用。</p>
+              <p class="config-note" id="retention-note">修改 <code>checks.json</code> 后重启服务即可应用。</p>
             </section>
 
             <section class="panel security-note" aria-labelledby="security-title">
@@ -266,7 +269,7 @@
       </main>
 
       <footer>
-        <span>SENTINEL <b>v0.8.0</b></span>
+        <span>SENTINEL <b>v0.9.0</b></span>
         <span>Zero-dependency / Python standard library</span>
         <span id="footer-state">本地数据 · 不采集凭据</span>
       </footer>

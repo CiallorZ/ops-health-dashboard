@@ -11,9 +11,9 @@
 [GitHub Actions](https://github.com/CiallorZ/ops-health-dashboard/actions/workflows/ci.yml)
 · [Python 3.11+](https://www.python.org/)
 · [MIT License](LICENSE)
-· [v0.8.0](VERSION)
+· [v0.9.0](VERSION)
 
-[下载 v0.8.0](docs/downloads/sentinel-0.8.0.zip)
+[下载 v0.9.0](docs/downloads/sentinel-0.9.0.zip)
 · [介绍页](docs/index.html)
 · [安全边界](docs/SECURITY.md)
 · [测试说明](docs/TESTING.md)
@@ -36,6 +36,7 @@ Sentinel 面向“先自己看见，再等人投诉”的场景：本机或内�
 - 浏览器关闭后，后台调度仍按配置周期持续采样；
 - 按真实 UTC 日聚合长期可用率，并给出 p50 / p95 延迟分位数；
 - 证书到期日历只统计真实 TLS 握手返回的到期时间，按阈值分级并给出最近到期；
+- 历史文件有硬上限：单文件 4 MiB、2 份归档、最多加载 5000 行，超出即轮转并如实标注截断；
 - 状态变化可投递到 Webhook，并保留冷却、重试和最终送达结果；
 - 离线报告会明确标注已测量、已跳过与未测量能力。
 
@@ -45,7 +46,7 @@ Sentinel 面向“先自己看见，再等人投诉”的场景：本机或内�
 |---|---|
 | <img src="docs/assets/dashboard-desktop.png" alt="桌面端看板" width="720"> | <img src="docs/assets/dashboard-mobile.png" alt="移动端看板" width="240"> |
 
-> 截图使用仓库内的 `examples/checks.demo.json` 与 `examples/demo_targets.py` 在本地真实取样：4 项正常、1 项延迟预警、1 项超时失败、1 项端口故障；“对账 API”在第 2 次尝试后恢复，旧版端口从正常转为异常，告警账本保留了 down 与 recovered 的真实投递结果。
+> 截图使用仓库内的 `examples/checks.showcase.json` 与 `examples/demo_targets.py` 在本地真实取样：4 项正常、1 项延迟预警、2 项异常（GitHub TLS 一次真实超时、旧版任务端口关闭）；“对账 API”在第 2 次尝试后恢复，GitHub 证书在受限重试后回到正常，状态变化与告警账本都来自真实采样。
 
 ## 为什么像 Uptime Kuma，但不是 Uptime Kuma
 
@@ -82,6 +83,7 @@ Sentinel 是独立的 Python 标准库实现，不复制 Uptime Kuma 的 Vue / S
 | 投递证据 | 最近告警显示排队、投递、重试、送达、失败或抑制结果，不暴露 Webhook URL 与签名秘密 |
 | 长期趋势 | `/api/trends?days=1..30` 按真实 UTC 日聚合可用率与 p50/p95；缺失日期不补造 |
 | 证书日历 | `/api/certificates` 按真实 `expires_at` 计算剩余天数，按 `tls_warn_days` / `tls_fail_days` 分级，最多 8 条、窗口 90 天 |
+| 历史留存 | `history.jsonl` 单文件 4 MiB、2 份归档、最多加载 5000 行；超额轮转，截断在 API 与页面如实标注 |
 | 快速定位 | 可按名称、目标、分组或标签搜索，并按 `ok / warn / fail` 筛选 |
 | 离线报告 | `/api/report` 下载自包含 HTML，URL 凭据、查询参数与片段会被移除 |
 | 有界超时 | 每项独立超时，单项故障不会拖垮整个看板 |
@@ -93,7 +95,7 @@ Sentinel 是独立的 Python 标准库实现，不复制 Uptime Kuma 的 Vue / S
 
 | 方式 | 适合场景 | 入口 |
 |---|---|---|
-| Windows 便携包 | 下载后直接运行，不需要构建 | [下载 `sentinel-0.8.0.zip`](docs/downloads/sentinel-0.8.0.zip) · [SHA256](docs/downloads/sentinel-0.8.0.zip.sha256) |
+| Windows 便携包 | 下载后直接运行，不需要构建 | [下载 `sentinel-0.9.0.zip`](docs/downloads/sentinel-0.9.0.zip) · [SHA256](docs/downloads/sentinel-0.9.0.zip.sha256) |
 | Docker Compose | Linux 服务器或隔离环境 | 仓库根目录执行 `docker compose up --build -d` |
 | 源码运行 | 开发、审计与自定义 | `git clone` 后执行 `python server.py` |
 
@@ -282,6 +284,35 @@ python server.py --no-scheduler
 
 `/api/certificates` 只统计 TLS 握手成功并返回 `expires_at` 的检查：剩余天数由“到期时间 − 当前 UTC 时间”重新计算，因此缓存快照不会冻结数字。握手失败、非 TLS 检查与畸形指标会被跳过，不会推测到期时间；`upcoming` 最多 8 条，只覆盖未来 90 天内到期的证书。
 
+### 历史留存
+
+`data/history.jsonl` 不再无限增长：
+
+| 边界 | 默认值 | 行为 |
+|---|---|---|
+| 单文件字节上限 | 4 MiB | 达到上限后当前文件变为 `history.1.jsonl`，归档依次后移 |
+| 归档份数 | 2 | 最旧的 `history.2.jsonl` 被删除，总占用上限约 12 MiB |
+| 加载行数 | 5000 | 启动时只读取各文件的最新行，避免大文件拖慢启动 |
+| 内存窗口 | 240 轮 | `/api/status` 与逐项 heartbeat 的读取上限 |
+
+`GET /api/health` 的 `retention` 与 `/api/status` 的 `automation.retention` 报告真实占用：
+
+```json
+{
+  "current_bytes": 15442,
+  "max_file_bytes": 4194304,
+  "archives": [{"name": "history.1.jsonl", "bytes": 4194301}],
+  "max_archive_files": 2,
+  "total_bytes": 4209743,
+  "max_total_bytes": 12582912,
+  "loaded_lines": 240,
+  "max_load_lines": 5000,
+  "truncated": false
+}
+```
+
+`truncated` 为 `true` 表示启动时读取或压缩过程中丢弃了更早的采样。这时趋势只统计仍在磁盘上的真实采样，不会补造缺失日期。启动时如果发现超限或含畸形行的历史文件，会把它压缩到最新的完整行，而不是整体信任或直接失败。
+
 ```json
 {
   "generated_at": "2026-10-21T02:00:00Z",
@@ -324,7 +355,8 @@ CheckRunnerService
     ├── /api/*           只读 API
     ├── /api/report      自包含离线 HTML
     ├── data/history.jsonl
-    │     └── 每轮摘要 + 精简逐项 heartbeat
+    │     ├── 每轮摘要 + 精简逐项 heartbeat
+    │     └── 4 MiB 轮转 · 2 份归档 · 5000 行加载上限
     └── data/alerts.json
           └── 最近 80 条投递结果（不含 Webhook URL / 签名秘密）
 ```
@@ -381,7 +413,7 @@ docker compose up --build -d
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-release.ps1
 ```
 
-脚本会生成 `dist/sentinel-0.8.0.zip` 与对应的 `.sha256`，包含源码、默认配置、启动脚本、演示替身和文档。`dist/` 已加入 `.gitignore`，不会污染源码提交；脚本同时把最终包和校验文件复制到 `docs/downloads/`，供 README 与介绍页直接下载。构建包时不会把 `docs/downloads/` 再次打包，避免自包含递归。
+脚本会生成 `dist/sentinel-0.9.0.zip` 与对应的 `.sha256`，包含源码、默认配置、启动脚本、演示替身和文档。`dist/` 已加入 `.gitignore`，不会污染源码提交；脚本同时把最终包和校验文件复制到 `docs/downloads/`，供 README 与介绍页直接下载。构建包时不会把 `docs/downloads/` 再次打包，避免自包含递归。
 
 ## Windows 常驻
 
@@ -422,7 +454,7 @@ python server.py --port 18080 --config examples\checks.demo.json --data-dir data
 - [x] `v0.6` 自动化：后台定时采样、Webhook 告警、冷却重试、脱敏账本、可下载包与安装/Demo 介绍页。
 - [x] `v0.7` 长期趋势：真实 UTC 日聚合、可用率、p50/p95 与看板 7 天面板。
 - [x] `v0.8` 证书到期日历：`/api/certificates`、按阈值分级、看板证书面板与单元测试。
-- [ ] `v0.9` 历史归档：`history.jsonl` 行数与体积上限、归档保留窗口。
+- [x] `v0.9` 历史留存：4 MiB 单文件上限、2 份归档、5000 行加载上限、如实标注截断。
 - [ ] `v0.10` 多用户：只读分享、反向代理鉴权示例。
 
 详见 [ROADMAP.md](ROADMAP.md)。

@@ -1238,6 +1238,18 @@ h2 {
   color: var(--red);
 }
 
+#retention-state[data-state="ok"] {
+  color: var(--acid);
+}
+
+#retention-state[data-state="warn"] {
+  color: var(--amber);
+}
+
+#retention-state[data-state="fail"] {
+  color: var(--red);
+}
+
 .automation-list {
   display: grid;
   gap: 0;

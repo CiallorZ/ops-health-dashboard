@@ -42,6 +42,10 @@ const elements = {
   thresholdLatencyFail: document.querySelector("#threshold-latency-fail"),
   thresholdTlsWarn: document.querySelector("#threshold-tls-warn"),
   thresholdTlsFail: document.querySelector("#threshold-tls-fail"),
+  retentionState: document.querySelector("#retention-state"),
+  retentionUsage: document.querySelector("#retention-usage"),
+  retentionArchives: document.querySelector("#retention-archives"),
+  retentionNote: document.querySelector("#retention-note"),
   footerState: document.querySelector("#footer-state"),
 };
 
@@ -517,6 +521,7 @@ function renderAutomation(data) {
   const automation = data.automation ?? {};
   const scheduler = automation.scheduler ?? {};
   const alerts = automation.alerts ?? {};
+  renderRetention(automation.retention);
   const running = Boolean(scheduler.running);
   const failed = Boolean(scheduler.last_error);
   elements.schedulerState.dataset.state = failed ? "fail" : running ? "ok" : "idle";
@@ -584,6 +589,39 @@ function renderConfig(config) {
     `后台每 ${formatInterval(Number(config?.monitor_interval_seconds))}采样`;
 }
 
+function formatBytes(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "--";
+  if (value < 1024) return `${Math.round(value)} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KiB`;
+  return `${(value / (1024 * 1024)).toFixed(2)} MiB`;
+}
+
+function renderRetention(retention) {
+  const current = retention?.current_bytes;
+  const maxTotal = retention?.max_total_bytes;
+  if (typeof current !== "number" || typeof maxTotal !== "number") {
+    elements.retentionState.textContent = "未知";
+    elements.retentionState.dataset.state = "idle";
+    elements.retentionUsage.textContent = "--";
+    elements.retentionArchives.textContent = "--";
+    return;
+  }
+  const archives = Array.isArray(retention.archives) ? retention.archives : [];
+  const total = Number(retention.total_bytes ?? current);
+  const ratio = maxTotal ? Math.min(1, total / maxTotal) : 0;
+  const truncated = Boolean(retention.truncated);
+  elements.retentionState.textContent = truncated ? "已截断" : "有界";
+  elements.retentionState.dataset.state = truncated ? "warn" : "ok";
+  elements.retentionUsage.textContent =
+    `${formatBytes(total)} / ${formatBytes(maxTotal)}（${Math.round(ratio * 100)}%）`;
+  elements.retentionArchives.textContent = archives.length
+    ? `${archives.length} / ${Number(retention.max_archive_files ?? 0)} 份`
+    : "无";
+  elements.retentionNote.innerHTML = truncated
+    ? "历史超过保留上限，较早的采样已被截断；趋势只统计仍在磁盘上的真实采样。"
+    : "当前历史文件与归档都在上限内；超出时自动轮转，不会无限增长。";
+}
+
 async function fetchJson(path, options) {
   const response = await fetch(path, {
     ...options,
@@ -631,6 +669,10 @@ async function loadStatus({ force = false } = {}) {
     elements.schedulerState.textContent = "不可用";
     elements.alertList.innerHTML =
       `<div class="alert-empty is-error">无法读取告警账本：${escapeHtml(error.message)}</div>`;
+    elements.retentionState.textContent = "不可用";
+    elements.retentionState.dataset.state = "fail";
+    elements.retentionUsage.textContent = "--";
+    elements.retentionArchives.textContent = "--";
     elements.trendSource.textContent = "不可用";
     elements.longTrendList.innerHTML =
       `<div class="trend-empty is-error">无法读取按天聚合：${escapeHtml(error.message)}</div>`;

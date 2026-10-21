@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "monitor_interval_seconds": 15,
+  "notifications": {
+    "webhook_url": "http://127.0.0.1:18081/webhook",
+    "cooldown_seconds": 1,
+    "timeout_seconds": 1,
+    "retry_attempts": 1
+  },
+  "thresholds": {
+    "latency_warn_ms": 800,
+    "latency_fail_ms": 2500,
+    "tls_warn_days": 30,
+    "tls_fail_days": 7
+  },
+  "checks": [
+    {
+      "id": "tls-github",
+      "name": "GitHub TLS 证书",
+      "group": "外部依赖",
+      "type": "tls",
+      "target": "github.com",
+      "port": 443,
+      "timeout_seconds": 8,
+      "retry_attempts": 1,
+      "tags": ["public", "certificate"]
+    },
+    {
+      "id": "tls-example",
+      "name": "Example TLS 证书",
+      "group": "外部依赖",
+      "type": "tls",
+      "target": "example.com",
+      "port": 443,
+      "timeout_seconds": 8,
+      "retry_attempts": 1,
+      "tags": ["public", "certificate"]
+    },
+    {
+      "id": "checkout-api",
+      "name": "结算 API",
+      "group": "核心业务",
+      "type": "http",
+      "target": "http://127.0.0.1:18081/ok",
+      "expected_status": [200],
+      "timeout_seconds": 2,
+      "retry_attempts": 1,
+      "tags": ["api"]
+    },
+    {
+      "id": "catalog-api",
+      "name": "商品目录 API",
+      "group": "核心业务",
+      "type": "http",
+      "target": "http://127.0.0.1:18081/slow",
+      "expected_status": [200],
+      "timeout_seconds": 3,
+      "tags": ["api", "latency"]
+    },
+    {
+      "id": "flaky-api",
+      "name": "对账 API",
+      "group": "核心业务",
+      "type": "http",
+      "target": "http://127.0.0.1:18081/flaky",
+      "expected_status": [200],
+      "timeout_seconds": 2,
+      "retry_attempts": 2,
+      "tags": ["api", "retry"]
+    },
+    {
+      "id": "legacy-port",
+      "name": "旧版任务端口",
+      "group": "遗留系统",
+      "type": "tcp",
+      "target": "127.0.0.1",
+      "port": 18082,
+      "timeout_seconds": 1,
+      "tags": ["tcp"]
+    },
+    {
+      "id": "dashboard-api",
+      "name": "控制面 API",
+      "group": "本机服务",
+      "type": "http",
+      "target": "http://127.0.0.1:18080/api/health",
+      "expected_status": [200],
+      "timeout_seconds": 2,
+      "tags": ["self", "api"]
+    }
+  ]
+}

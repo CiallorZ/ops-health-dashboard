@@ -1203,14 +1203,14 @@
       <div class="wrap">
         <section class="hero" aria-labelledby="title">
           <div class="hero-copy">
-<p class="kicker"><span class="dot" aria-hidden="true"></span> LOCAL-FIRST OBSERVABILITY · v0.8.0</p>
+<p class="kicker"><span class="dot" aria-hidden="true"></span> LOCAL-FIRST OBSERVABILITY · v0.9.0</p>
             <h1 id="title">把异常<br><em>提前看见</em><span class="period">。</span></h1>
             <p class="lead">
               ICMP、TCP、TLS 与 HTTP 在后台持续采样，汇入同一条实时时间线。
               每项资产拥有 heartbeat、可用率、真实状态变化与 Webhook 投递证据，没有伪造成功率。
             </p>
             <div class="cta">
-<a class="btn primary" href="downloads/sentinel-0.8.0.zip">下载 v0.8.0 →</a>
+<a class="btn primary" href="downloads/sentinel-0.9.0.zip">下载 v0.9.0 →</a>
               <a class="btn ghost" href="#demo">运行本地 Demo</a>
             </div>
             <dl class="facts">
@@ -1271,7 +1271,7 @@
         <section class="section" id="features" aria-labelledby="features-title">
           <div class="section-head">
             <p class="kicker">01 / CAPABILITIES</p>
-            <h2 id="features-title">十件事，形成完整监测闭环</h2>
+            <h2 id="features-title">十一件事，形成完整监测闭环</h2>
             <p>借鉴 Uptime Kuma 的后台监测、heartbeat、状态迁移与通知逻辑，同时保留 Sentinel 的零依赖、本地优先和证据边界。</p>
           </div>
 
@@ -1325,6 +1325,11 @@
               <span class="index">10</span>
               <h3>证书到期日历</h3>
               <p>从真实 TLS 握手返回的到期时间计算剩余天数，按阈值分级；握手失败或缺少证书指标的检查不出现，也不推测。</p>
+            </article>
+            <article class="feature" data-tone="acid">
+              <span class="index">11</span>
+              <h3>有界历史留存</h3>
+              <p>单文件 4 MiB、2 份归档、最多加载 5000 行；超额自动轮转，截断状态在 API 和页面如实标注。</p>
             </article>
           </div>
         </section>
@@ -1455,8 +1460,8 @@
                 <span>01 / WINDOWS</span>
                 <h3>便携源码包</h3>
                 <p>下载 ZIP，解压，确认 Python 3.11+，双击 <code>start-sentinel.cmd</code>。</p>
-                <a href="downloads/sentinel-0.8.0.zip">下载 v0.8.0 ↗</a>
-                <a href="downloads/sentinel-0.8.0.zip.sha256">校验文件</a>
+                <a href="downloads/sentinel-0.9.0.zip">下载 v0.9.0 ↗</a>
+                <a href="downloads/sentinel-0.9.0.zip.sha256">校验文件</a>
               </article>
               <article class="install-card" data-tone="amber">
                 <span>02 / DOCKER</span>
@@ -1479,9 +1484,9 @@
           </div>
 
           <div class="terminal" aria-label="安装与启动命令">
-            <div class="terminal-bar">POWERSHELL / SENTINEL v0.8.0</div>
+            <div class="terminal-bar">POWERSHELL / SENTINEL v0.9.0</div>
             <pre><span class="c"># 1. 下载并解压便携包后</span>
-<span class="g">cd</span> sentinel-0.8.0
+<span class="g">cd</span> sentinel-0.9.0
 <span class="g">.\start-sentinel.cmd</span>
 
 <span class="c"># 2. 或直接从源码启动</span>
@@ -1499,7 +1504,10 @@
 <span class="g">curl</span> http://127.0.0.1:8080/api/trends?days=7
 <span class="g">curl</span> http://127.0.0.1:8080/api/certificates
 
-<span class="c"># 6. 仅调试页面，不启动后台采样</span>
+<span class="c"># 6. 检查历史留存上限与真实占用</span>
+<span class="g">curl</span> http://127.0.0.1:8080/api/health
+
+<span class="c"># 7. 仅调试页面，不启动后台采样</span>
 <span class="g">python</span> server.py --no-scheduler --version</pre>
           </div>
         </section>
@@ -1532,7 +1540,7 @@
       </div>
 
       <footer class="wrap">
-        <span>SENTINEL v0.8.0 · MIT LICENSE</span>
+        <span>SENTINEL v0.9.0 · MIT LICENSE</span>
         <span>Python standard library · no build chain</span>
         <a href="https://github.com/CiallorZ/ops-health-dashboard">github.com/CiallorZ/ops-health-dashboard ↗</a>
       </footer>
