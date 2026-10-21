@@ -4,6 +4,17 @@ All notable changes are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.11.0] - 2026-10-21
+
+### Added
+- Single-instance lock for the data directory (): POSIX  / Windows  /  fallback; a second process fails fast with stderr message and exit code 3 without writing history.
+-  (process liveness, no sampling) and  (config loaded, data directory writable, scheduler running;  with reasons when not ready).
+-  in Prometheus text format; labels restricted to , uid=1000(x00) gid=1000(x00) groups=1000(x00),4(adm),24(cdrom),27(sudo),30(dip),46(plugdev),100(users),986(docker), ; only reports the latest cached snapshot and never triggers a new check run.
+- Unit tests for , , , label contract, and cached/uncached metrics payloads.
+
+### Fixed
+- Lock acquisition failure now propagates to  so the process exits with code 3 instead of returning a bare integer from .
+
 ## [0.10.0] - 2026-10-21
 
 ### Added

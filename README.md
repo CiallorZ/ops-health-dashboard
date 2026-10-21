@@ -11,9 +11,9 @@
 [GitHub Actions](https://github.com/CiallorZ/ops-health-dashboard/actions/workflows/ci.yml)
 · [Python 3.11+](https://www.python.org/)
 · [MIT License](LICENSE)
-· [v0.10.0](VERSION)
+· [v0.11.0](VERSION)
 
-[下载 v0.10.0](docs/downloads/sentinel-0.10.0.zip)
+[下载 v0.11.0](docs/downloads/sentinel-0.11.0.zip)
 · [介绍页](docs/index.html)
 · [架构与方向](docs/ARCHITECTURE.md)
 · [安全边界](docs/SECURITY.md)
@@ -103,7 +103,7 @@ Sentinel 是独立的 Python 标准库实现，不复制 Uptime Kuma 的 Vue / S
 
 | 方式 | 适合场景 | 入口 |
 |---|---|---|
-| Windows 便携包 | 下载后直接运行，不需要构建 | [下载 `sentinel-0.10.0.zip`](docs/downloads/sentinel-0.10.0.zip) · [SHA256](docs/downloads/sentinel-0.10.0.zip.sha256) |
+| Windows 便携包 | 下载后直接运行，不需要构建 | [下载 `sentinel-0.10.0.zip`](docs/downloads/sentinel-0.10.0.zip) · [SHA256](docs/downloads/sentinel-0.11.0.zip.sha256) |
 | Docker Compose | Linux 服务器或隔离环境 | 仓库根目录执行 `docker compose up --build -d` |
 | 源码运行 | 开发、审计与自定义 | `git clone` 后执行 `python server.py` |
 

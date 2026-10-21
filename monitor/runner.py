@@ -182,6 +182,54 @@ class CheckRunnerService:
             }
         return self.alert_dispatcher.status(limit=limit)
 
+    def metrics_payload(self) -> str:
+        lines = []
+        checks = (self._cached or {}).get("checks", [])
+        for check in checks:
+            domain = _label(str(check.get("group", "未分组")))
+            check_id = _label(str(check.get("id", "")))
+            labels = 'domain="' + domain + '",id="' + check_id + '"'
+            status = str(check.get("status", "unknown"))
+            up = 1 if status == "ok" else 0
+            lines.append("sentinel_check_up{" + labels + "} " + str(up))
+            for state in ("ok", "warn", "fail", "unknown"):
+                value = 1 if status == state else 0
+                lines.append('sentinel_check_status{' + labels + ',status="' + state + '"} ' + str(value))
+            latency = check.get("latency_ms")
+            if latency is not None:
+                lines.append("sentinel_check_latency_ms{" + labels + "} " + str(latency))
+        stats = self.history.stats()
+        lines.append("sentinel_history_bytes " + str(stats["current_bytes"]))
+        lines.append("sentinel_history_max_bytes " + str(stats["max_file_bytes"]))
+        lines.append("sentinel_history_loaded_lines " + str(stats["loaded_lines"]))
+        lines.append("sentinel_history_max_load_lines " + str(stats["max_load_lines"]))
+        lines.append("sentinel_history_truncated " + ("1" if stats["truncated"] else "0"))
+        return chr(10).join(lines)+chr(10)
+
+    def metrics_payload(self) -> str:
+        lines = []
+        checks = (self._cached or {}).get("checks", [])
+        for check in checks:
+            domain = _label(str(check.get("group", "未分组")))
+            check_id = _label(str(check.get("id", "")))
+            labels = 'domain="' + domain + '",id="' + check_id + '"'
+            status = str(check.get("status", "unknown"))
+            up = 1 if status == "ok" else 0
+            lines.append("sentinel_check_up{" + labels + "} " + str(up))
+            for state in ("ok", "warn", "fail", "unknown"):
+                value = 1 if status == state else 0
+                lines.append('sentinel_check_status{' + labels + ',status="' + state + '"} ' + str(value))
+            latency = check.get("latency_ms")
+            if latency is not None:
+                lines.append("sentinel_check_latency_ms{" + labels + "} " + str(latency))
+        stats = self.history.stats()
+        lines.append("sentinel_history_bytes " + str(stats["current_bytes"]))
+        lines.append("sentinel_history_max_bytes " + str(stats["max_file_bytes"]))
+        lines.append("sentinel_history_loaded_lines " + str(stats["loaded_lines"]))
+        lines.append("sentinel_history_max_load_lines " + str(stats["max_load_lines"]))
+        lines.append("sentinel_history_truncated " + ("1" if stats["truncated"] else "0"))
+        return chr(10).join(lines) + chr(10)
+
     def _execute(self, checks: list[CheckConfig]) -> list[CheckResult]:
         if not checks:
             return []
@@ -258,3 +306,10 @@ class CheckRunnerService:
             )
         return payload
 
+
+def _label(value: str) -> str:
+    return value.replace(chr(92), chr(92)+chr(92)).replace(chr(34), chr(92)+chr(34)).replace(chr(10), chr(92)+chr(110))
+
+
+def _label(value: str) -> str:
+    return value.replace(chr(92), chr(92)+chr(92)).replace(chr(34), chr(92)+chr(34)).replace(chr(10), chr(92)+chr(110))

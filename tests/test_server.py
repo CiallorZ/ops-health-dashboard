@@ -246,6 +246,106 @@ class ServerTests(unittest.TestCase):
         self.assertNotIn("secret", body)
 
 
+    def test_healthz_reports_service_alive(self):
+        status, _, body = self.get_json("/healthz")
+        self.assertEqual(status, 200)
+        self.assertEqual(body["status"], "ok")
+        self.assertEqual(body["version"], __version__)
+        self.assertIn("uptime_seconds", body)
+
+    def test_readyz_reports_ready_when_healthy(self):
+        self.server.start_background_monitor()
+        self.server.runner.get_snapshot(force=True)
+        status, _, body = self.get_json("/readyz")
+        self.assertEqual(status, 200)
+        self.assertEqual(body["status"], "ready")
+        self.assertEqual(body["version"], __version__)
+
+    def test_metrics_returns_prometheus_text(self):
+        self.server.runner.get_snapshot(force=True)
+        status, headers, body = self.get_text("/metrics")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["Content-Type"], "text/plain; version=0.0.4; charset=utf-8")
+        self.assertEqual(headers.get("Cache-Control"), "no-store")
+        self.assertIn("sentinel_check_up{", body)
+        self.assertIn("sentinel_history_bytes ", body)
+        self.assertNotIn("type=", body)
+
+    def test_metrics_only_reports_allowed_labels(self):
+        self.server.runner.get_snapshot(force=True)
+        self.server.runner._cached = {
+            "generated_at": "2026-10-18T12:00:00Z",
+            "summary": {"health": "critical", "total": 1, "ok": 0, "warn": 0, "fail": 1},
+            "checks": [{
+                "id": "api",
+                "name": "API",
+                "group": "核心 服务",
+                "type": "ping",
+                "target": "https://example.test/health",
+                "status": "fail",
+                "summary": "down",
+                "detail": "no response",
+                "latency_ms": 42.5,
+            }],
+        }
+        _, _, body = self.get_text("/metrics")
+        self.assertIn('domain=\"核心 服务\",id=\"api\"', body)
+        self.assertNotIn("type=", body)
+
+    def get_text(self, path):
+        with urllib.request.urlopen(self.base + path, timeout=5) as response:
+            return response.status, response.headers, response.read().decode("utf-8")
+
 if __name__ == "__main__":
     unittest.main()
+    def test_healthz_reports_service_alive(self):
+        status, _, body = self.get_json("/healthz")
+        self.assertEqual(status, 200)
+        self.assertEqual(body["status"], "ok")
+        self.assertEqual(body["version"], __version__)
+        self.assertIn("uptime_seconds", body)
+
+    def test_readyz_reports_ready_when_healthy(self):
+        status, _, body = self.get_json("/readyz")
+        self.assertEqual(status, 200)
+        self.assertEqual(body["status"], "ready")
+        self.assertEqual(body["version"], __version__)
+
+    def test_metrics_returns_prometheus_text(self):
+        self.server.runner.get_snapshot(force=True)
+        status, headers, body = self.get_text("/metrics")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["Content-Type"], "text/plain; version=0.0.4; charset=utf-8")
+        self.assertEqual(headers.get("Cache-Control"), "no-store")
+        self.assertIn("sentinel_check_up{", body)
+        self.assertIn("sentinel_history_bytes ", body)
+        self.assertNotIn("type=", body)
+
+    def test_metrics_only_reports_allowed_labels(self):
+        self.server.runner.get_snapshot = lambda **_kwargs: {
+            "generated_at": "2026-10-18T12:00:00Z",
+            "summary": {"health": "critical", "total": 1, "ok": 0, "warn": 0, "fail": 1},
+            "checks": [{
+                "id": "api",
+                "name": "API",
+                "group": "核心 服务",
+                "type": "ping",
+                "target": "https://example.test/health",
+                "status": "fail",
+                "summary": "down",
+                "detail": "no response",
+                "latency_ms": 42.5,
+            }],
+        }
+        _, _, body = self.get_text("/metrics")
+        self.assertIn('domain="核心 服务",id="api"', body)
+        self.assertNotIn("type=", body)
+
+    def get_text(self, path):
+        with urllib.request.urlopen(self.base + path, timeout=5) as response:
+            return response.status, response.headers, response.read().decode("utf-8")
+
+    def get_json(self, path):
+        with urllib.request.urlopen(self.base + path, timeout=5) as response:
+            return response.status, response.headers, json.loads(response.read())
 

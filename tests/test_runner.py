@@ -316,6 +316,53 @@ class TrendIntegrationTests(unittest.TestCase):
         self.assertEqual(trends["days_with_data"], 2)
         self.assertEqual(list(trends["daily"]), ["2026-10-21", "2026-10-19"])
 
+    def test_metrics_payload_uses_only_allowed_labels(self):
+        config = DashboardConfig(
+            version=1,
+            thresholds=Thresholds(),
+            checks=(
+                CheckConfig(id="a", name="A", type="ping", target="127.0.0.1"),
+                CheckConfig(id="b", name="B", type="ping", target="127.0.0.1"),
+            ),
+        )
+        with TemporaryDirectory() as directory:
+            runner = CheckRunnerService(
+                config,
+                HistoryStore(directory),
+                cache_seconds=0,
+                check_runner=fake_check,
+            )
+            runner.get_snapshot(force=True)
+            payload = runner.metrics_payload()
+        lines = payload.splitlines()
+        self.assertIn('sentinel_check_up{domain="未分组",id="a"} 1', lines)
+        self.assertIn('sentinel_check_up{domain="未分组",id="b"} 1', lines)
+        self.assertNotIn("type=", payload)
+        up_lines = [line for line in lines if line.startswith("sentinel_check_up{")]
+        self.assertEqual(len(up_lines), 2)
+        history_lines = [line for line in lines if line.startswith("sentinel_history_")]
+        self.assertEqual(len(history_lines), 5)
+        self.assertIn("sentinel_history_truncated 0", lines)
+
+    def test_metrics_payload_without_cached_snapshot(self):
+        with TemporaryDirectory() as directory:
+            runner = CheckRunnerService(
+                DashboardConfig(
+                    version=1,
+                    thresholds=Thresholds(),
+                    checks=(
+                        CheckConfig(id="a", name="A", type="ping", target="127.0.0.1"),
+                        CheckConfig(id="b", name="B", type="ping", target="127.0.0.1"),
+                    ),
+                ),
+                HistoryStore(directory),
+                cache_seconds=0,
+                check_runner=fake_check,
+            )
+            payload = runner.metrics_payload()
+        self.assertIn("sentinel_history_bytes ", payload)
+        self.assertNotIn("sentinel_check_up{", payload)
+
 
 if __name__ == "__main__":
     unittest.main()

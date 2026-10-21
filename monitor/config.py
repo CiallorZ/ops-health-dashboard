@@ -91,6 +91,7 @@ class CheckConfig:
     verify_tls: bool = True
     group: str = "未分组"
     tags: tuple[str, ...] = ()
+    domain: str = "network"
 
     def public_dict(self) -> dict[str, Any]:
         port = self.port
@@ -109,6 +110,7 @@ class CheckConfig:
             "verify_tls": self.verify_tls,
             "group": self.group,
             "tags": list(self.tags),
+            "domain": self.domain,
         }
 
 

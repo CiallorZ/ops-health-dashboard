@@ -18,6 +18,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 from monitor import __version__
 from monitor.alerts import create_alert_dispatcher
 from monitor.config import ConfigError, load_config
+from monitor.instance_lock import InstanceLock, InstanceLockError
 from monitor.history import MAX_TREND_DAYS, HistoryStore
 from monitor.report import build_report
 from monitor.runner import CheckRunnerService
@@ -44,14 +45,20 @@ class DashboardServer(ThreadingHTTPServer):
         self.runner = runner
         self.dashboard_dir = dashboard_dir.resolve()
         self.scheduler = scheduler
+        self.lock: InstanceLock | None = None
 
     def start_background_monitor(self) -> None:
         self.scheduler.start()
+
+    def hold_lock(self, lock: InstanceLock) -> None:
+        self.lock = lock
 
     def server_close(self) -> None:
         self.scheduler.stop()
         if self.runner.alert_dispatcher is not None:
             self.runner.alert_dispatcher.close()
+        if self.lock is not None:
+            self.lock.release()
         super().server_close()
 
 
@@ -74,6 +81,63 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
                     "retention": self.server.runner.history.stats(),
                 },
             )
+            return
+        if parsed.path == "/healthz":
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "status": "ok",
+                    "service": "ops-health-dashboard",
+                    "version": __version__,
+                    "uptime_seconds": round(time.monotonic() - STARTED_AT, 1),
+                },
+            )
+            return
+        if parsed.path == "/readyz":
+            try:
+                problems: list[str] = []
+                snapshot = self.server.runner.get_snapshot(force=False)
+                if snapshot is None:
+                    problems.append("snapshot unavailable")
+                else:
+                    try:
+                        self.server.runner.history.stats()
+                    except OSError as exc:
+                        problems.append(f"data directory not writable: {exc}")
+                sched = self.server.scheduler.status()
+                if not sched.get("running"):
+                    problems.append("scheduler not running")
+            except Exception as exc:  # keep /readyz honest under partial failures
+                problems.append(str(exc))
+            if problems:
+                self._send_json(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    {
+                        "status": "not-ready",
+                        "service": "ops-health-dashboard",
+                        "version": __version__,
+                        "problems": problems,
+                    },
+                )
+                return
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "status": "ready",
+                    "service": "ops-health-dashboard",
+                    "version": __version__,
+                },
+            )
+            return
+        if parsed.path == "/metrics":
+            body = self.server.runner.metrics_payload().encode("utf-8")
+            self.send_response(HTTPStatus.OK)
+            self._security_headers()
+            self.send_header("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
             return
         if parsed.path == "/api/status":
             query = parse_qs(parsed.query)
@@ -289,7 +353,15 @@ def build_server(
         alert_dispatcher=alert_dispatcher,
     )
     scheduler = BackgroundMonitor(runner, config.monitor_interval_seconds)
-    return DashboardServer((host, port), runner, Path(dashboard_dir), scheduler)
+    server = DashboardServer((host, port), runner, Path(dashboard_dir), scheduler)
+    lock = InstanceLock(Path(data_dir))
+    try:
+        lock.acquire()
+    except InstanceLockError as exc:
+        print(f"startup failed: {exc}", file=sys.stderr)
+        raise
+    server.hold_lock(lock)
+    return server
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -325,6 +397,9 @@ def main(argv: list[str] | None = None) -> int:
     except ConfigError as exc:
         print(f"Configuration error: {exc}", file=sys.stderr)
         return 2
+    except InstanceLockError as exc:
+        print(f"startup failed: {exc}", file=sys.stderr)
+        return 3
     except OSError as exc:
         print(f"Server startup failed: {exc}", file=sys.stderr)
         return 1
