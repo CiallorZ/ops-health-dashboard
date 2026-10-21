@@ -122,6 +122,9 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/certificates":
             self._send_json(HTTPStatus.OK, self._certificates())
             return
+        if parsed.path == "/api/maintenance":
+            self._send_json(HTTPStatus.OK, self._maintenance())
+            return
         if parsed.path == "/api/report":
             self._send_report()
             return
@@ -162,6 +165,7 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
                 "scheduler": self.server.scheduler.status(),
                 "alerts": self.server.runner.alert_status(limit=12),
                 "retention": self.server.runner.history.stats(),
+                "maintenance": self.server.runner.get_maintenance(),
             },
         }
 
@@ -175,6 +179,12 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
         return {
             "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             **self.server.runner.get_certificates(),
+        }
+
+    def _maintenance(self) -> dict[str, Any]:
+        return {
+            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            **self.server.runner.get_maintenance(),
         }
 
     def _send_report(self) -> None:

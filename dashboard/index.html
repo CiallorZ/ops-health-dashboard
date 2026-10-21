@@ -217,6 +217,20 @@
               <p class="config-note">只统计真实 TLS 握手返回的到期时间；握手失败或没有证书指标的检查不会出现，也不推测。</p>
             </section>
 
+            <section class="panel maintenance-panel" id="maintenance-panel" aria-labelledby="maintenance-title">
+              <div class="panel-heading compact">
+                <div>
+                  <p class="panel-kicker">MAINTENANCE</p>
+                  <h2 id="maintenance-title">维护窗口</h2>
+                </div>
+                <span class="mini-legend" id="maintenance-state" data-state="idle">读取中</span>
+              </div>
+              <div class="maintenance-list" id="maintenance-list" aria-live="polite">
+                <div class="maintenance-empty">正在读取维护计划</div>
+              </div>
+              <p class="config-note">维护期内仍然真实采样与展示状态，只抑制 Webhook 告警；账本会写明抑制原因。</p>
+            </section>
+
             <section class="panel automation-panel" id="automation-panel" aria-labelledby="automation-title">
               <div class="panel-heading compact">
                 <div>
@@ -269,7 +283,7 @@
       </main>
 
       <footer>
-        <span>SENTINEL <b>v0.9.0</b></span>
+        <span>SENTINEL <b>v0.10.0</b></span>
         <span>Zero-dependency / Python standard library</span>
         <span id="footer-state">本地数据 · 不采集凭据</span>
       </footer>

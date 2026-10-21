@@ -142,6 +142,7 @@ try {
       }
       const panel = document.querySelector("#certificate-panel");
       const policy = document.querySelector(".config-panel");
+      const maintenance = document.querySelector("#maintenance-panel");
       return {
         viewport: window.innerWidth,
         scrollWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
@@ -152,6 +153,9 @@ try {
         window: document.querySelector("#certificate-window")?.textContent ?? null,
         certRows: document.querySelectorAll("#certificate-list .certificate-row").length,
         certText: (panel?.innerText ?? "").slice(0, 400),
+        maintenanceState: document.querySelector("#maintenance-state")?.textContent ?? null,
+        maintenanceRows: document.querySelectorAll("#maintenance-list .maintenance-row").length,
+        maintenanceText: (maintenance?.innerText ?? "").slice(0, 400),
         retentionText: (policy?.innerText ?? "").slice(0, 500),
         retentionState: document.querySelector("#retention-state")?.textContent ?? null,
         overflowCount: overflowing.length,

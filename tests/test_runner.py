@@ -221,7 +221,7 @@ class RunnerTests(unittest.TestCase):
             def __init__(self):
                 self.events = []
 
-            def notify_transition(self, check, previous, _summary):
+            def notify_transition(self, check, previous, _summary, **_kwargs):
                 self.events.append((check.status, previous))
 
             def status(self, **_kwargs):

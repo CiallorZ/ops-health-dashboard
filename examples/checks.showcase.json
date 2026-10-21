@@ -13,6 +13,16 @@
     "tls_warn_days": 30,
     "tls_fail_days": 7
   },
+  "maintenance_windows": [
+    {
+      "id": "release-window",
+      "name": "结算服务发布窗口",
+      "starts_at": "2026-10-20T00:00:00Z",
+      "ends_at": "2026-10-23T00:00:00Z",
+      "check_ids": ["checkout-api"],
+      "suppress_alerts": true
+    }
+  ],
   "checks": [
     {
       "id": "tls-github",

@@ -21,6 +21,7 @@ from .history import (
     summarize_check_history,
     summarize_history_trends,
 )
+from .maintenance import active_window_for, summarize_maintenance
 
 CheckRunner = Callable[[CheckConfig, Thresholds], CheckResult]
 
@@ -136,6 +137,15 @@ class CheckRunnerService:
             tls_fail_days=self.config.thresholds.tls_fail_days,
         )
 
+    def get_maintenance(self) -> dict[str, Any]:
+        """Return active and upcoming windows from the current configuration."""
+        snapshot = self._cached if self._cached is not None else self.get_snapshot()
+        return summarize_maintenance(
+            self.config.maintenance_windows,
+            snapshot.get("checks", []),
+            now=_utc_now(),
+        )
+
     def _dispatch_transitions(
         self, results: list[CheckResult], summary: dict[str, Any]
     ) -> None:
@@ -149,7 +159,17 @@ class CheckRunnerService:
             changed = previous is not None and previous != result.status
             first_failure = previous is None and result.status == "fail"
             if changed or first_failure:
-                self.alert_dispatcher.notify_transition(result, previous, summary)
+                window = active_window_for(
+                    self.config.maintenance_windows,
+                    result.id,
+                    now=_utc_now(),
+                )
+                self.alert_dispatcher.notify_transition(
+                    result,
+                    previous,
+                    summary,
+                    maintenance_name=window.name if window is not None else None,
+                )
             self._last_statuses[result.id] = result.status
 
     def alert_status(self, *, limit: int = 12) -> dict[str, Any]:

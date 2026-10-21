@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from .maintenance import MaintenanceError, MaintenanceWindow, parse_maintenance_windows
+
 SUPPORTED_TYPES = {"http", "tcp", "tls", "ping"}
 MAX_CHECKS = 200
 MAX_NAME_LENGTH = 120
@@ -117,6 +119,7 @@ class DashboardConfig:
     checks: tuple[CheckConfig, ...]
     monitor_interval_seconds: float = 60
     notifications: NotificationConfig = NotificationConfig()
+    maintenance_windows: tuple[MaintenanceWindow, ...] = ()
 
     def public_dict(self) -> dict[str, Any]:
         return {
@@ -129,6 +132,9 @@ class DashboardConfig:
             },
             "monitor_interval_seconds": self.monitor_interval_seconds,
             "notifications": self.notifications.public_dict(),
+            "maintenance_windows": [
+                window.rule_dict() for window in self.maintenance_windows
+            ],
             "checks": [check.public_dict() for check in self.checks],
         }
 
@@ -448,12 +454,29 @@ def parse_config(raw: Any) -> DashboardConfig:
     if len(ids) != len(set(ids)):
         raise ConfigError("check ids must be unique")
 
+    try:
+        maintenance_windows = parse_maintenance_windows(
+            raw.get("maintenance_windows")
+        )
+    except MaintenanceError as exc:
+        raise ConfigError(str(exc)) from exc
+    known_ids = set(ids)
+    for window in maintenance_windows:
+        unknown = [check_id for check_id in window.check_ids if check_id not in known_ids]
+        if unknown:
+            # A typo must fail loudly instead of silently disabling nothing.
+            raise ConfigError(
+                f"maintenance_windows[{window.id}].check_ids references unknown "
+                f"check ids: {', '.join(unknown)}"
+            )
+
     return DashboardConfig(
         version=version,
         thresholds=thresholds,
         checks=checks,
         monitor_interval_seconds=monitor_interval_seconds,
         notifications=notifications,
+        maintenance_windows=maintenance_windows,
     )
 
 

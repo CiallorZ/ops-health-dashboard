@@ -55,6 +55,17 @@ class UiContractTests(unittest.TestCase):
         self.assertIn('id="retention-archives"', html)
         self.assertIn('id="retention-note"', html)
 
+    def test_maintenance_panel_surfaces_window_state(self):
+        javascript = (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
+        html = (ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("function renderMaintenance", javascript)
+        self.assertIn("automation?.maintenance", javascript)
+        self.assertIn("active_check_ids", javascript)
+        self.assertIn("维护中", javascript)
+        self.assertIn('id="maintenance-panel"', html)
+        self.assertIn('id="maintenance-state"', html)
+        self.assertIn('id="maintenance-list"', html)
+
     def test_document_has_accessibility_hooks(self):
         html = (ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
         self.assertIn('lang="zh-CN"', html)
@@ -67,6 +78,7 @@ class UiContractTests(unittest.TestCase):
         self.assertIn('id="long-trend-list"', html)
         self.assertIn('id="certificate-panel"', html)
         self.assertIn('id="certificate-list"', html)
+        self.assertIn('id="maintenance-panel"', html)
         self.assertIn("prefers-reduced-motion", (ROOT / "dashboard" / "styles.css").read_text(encoding="utf-8"))
 
     def test_current_version_is_consistent(self):

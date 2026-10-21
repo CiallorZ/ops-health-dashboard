@@ -31,6 +31,8 @@ const elements = {
   certificateNearest: document.querySelector("#certificate-nearest"),
   certificateCounts: document.querySelector("#certificate-counts"),
   certificateList: document.querySelector("#certificate-list"),
+  maintenanceState: document.querySelector("#maintenance-state"),
+  maintenanceList: document.querySelector("#maintenance-list"),
   schedulerState: document.querySelector("#scheduler-state"),
   schedulerInterval: document.querySelector("#scheduler-interval"),
   schedulerLast: document.querySelector("#scheduler-last"),
@@ -124,6 +126,18 @@ function formatDate(value) {
   }).format(date);
 }
 
+function formatDateTime(value) {
+  if (!value) return "时间未知";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "时间未知";
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
 function formatLatency(value) {
   return Number.isFinite(value) ? `${Math.round(value)} ms` : "--";
 }
@@ -139,6 +153,21 @@ function formatDays(value) {
   if (days <= 0) return "已过期";
   if (days < 1) return "不足 1 天";
   return `${Math.round(days)} 天`;
+}
+
+function formatDuration(seconds) {
+  if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds < 0) {
+    return "--";
+  }
+  if (seconds < 60) return "不足 1 分钟";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} 分钟`;
+  if (minutes < 60 * 48) {
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    return rest ? `${hours} 小时 ${rest} 分钟` : `${hours} 小时`;
+  }
+  return `${Math.floor(minutes / (60 * 24))} 天`;
 }
 
 function escapeHtml(value) {
@@ -579,6 +608,74 @@ function renderAutomation(data) {
   }).join("");
 }
 
+const maintenanceLabels = {
+  active: "进行中",
+  upcoming: "即将开始",
+};
+
+function renderMaintenance(maintenance) {
+  if (!maintenance || typeof maintenance !== "object") {
+    elements.maintenanceState.textContent = "未知";
+    elements.maintenanceState.dataset.state = "idle";
+    elements.maintenanceList.innerHTML =
+      '<div class="maintenance-empty">维护计划读取失败</div>';
+    return;
+  }
+  const active = Array.isArray(maintenance.active) ? maintenance.active : [];
+  const upcoming = Array.isArray(maintenance.upcoming) ? maintenance.upcoming : [];
+  const configured = Boolean(maintenance.configured);
+  const covered = Array.isArray(maintenance.active_check_ids)
+    ? maintenance.active_check_ids
+    : [];
+
+  if (active.length) {
+    elements.maintenanceState.textContent = `维护中 · ${covered.length} 项`;
+    elements.maintenanceState.dataset.state = "warn";
+  } else if (upcoming.length) {
+    elements.maintenanceState.textContent = `${upcoming.length} 个待开始`;
+    elements.maintenanceState.dataset.state = "ok";
+  } else {
+    elements.maintenanceState.textContent = configured ? "无进行中" : "未配置";
+    elements.maintenanceState.dataset.state = "idle";
+  }
+
+  const rows = [
+    ...active.map((item) => ({ ...item, state: "active" })),
+    ...upcoming.map((item) => ({ ...item, state: "upcoming" })),
+  ];
+  if (!rows.length) {
+    elements.maintenanceList.innerHTML = configured
+      ? '<div class="maintenance-empty">已配置维护窗口，但当前没有进行中或即将开始的窗口</div>'
+      : '<div class="maintenance-empty">在 checks.json 中配置 maintenance_windows 后启用</div>';
+    return;
+  }
+
+  elements.maintenanceList.innerHTML = rows.map((item) => {
+    const state = maintenanceLabels[item.state] ? item.state : "upcoming";
+    const scope = Array.isArray(item.check_ids) && item.check_ids.length
+      ? item.check_ids.join(", ")
+      : "全部检查";
+    const remainingLabel = state === "active" ? "剩余" : "开始于";
+    const remaining = state === "active"
+      ? formatDuration(Number(item.remaining_seconds))
+      : formatDateTime(item.starts_at);
+    const suppression = item.suppress_alerts === false ? "仅展示" : "抑制告警";
+    return `
+      <article class="maintenance-row" data-state="${escapeHtml(state)}">
+        <div class="maintenance-head">
+          <strong>${escapeHtml(item.name || item.id)}</strong>
+          <span class="maintenance-badge">${escapeHtml(maintenanceLabels[state])}</span>
+        </div>
+        <p class="maintenance-scope">${escapeHtml(scope)} · ${escapeHtml(suppression)}</p>
+        <div class="maintenance-meta">
+          <span>${escapeHtml(`${remainingLabel} ${remaining}`)}</span>
+          <span>${escapeHtml(`结束 ${formatDateTime(item.ends_at)}`)}</span>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
 function renderConfig(config) {
   const thresholds = config?.thresholds ?? {};
   elements.thresholdLatencyWarn.textContent = `${formatNumber(thresholds.latency_warn_ms)} ms`;
@@ -655,6 +752,7 @@ async function loadStatus({ force = false } = {}) {
     renderTrend(data.history);
     renderTransitions();
     renderAutomation(data);
+    renderMaintenance(data.automation?.maintenance);
     await loadTrends();
     await loadCertificates();
     setConnection("ok", "实时");
@@ -669,6 +767,10 @@ async function loadStatus({ force = false } = {}) {
     elements.schedulerState.textContent = "不可用";
     elements.alertList.innerHTML =
       `<div class="alert-empty is-error">无法读取告警账本：${escapeHtml(error.message)}</div>`;
+    elements.maintenanceState.textContent = "不可用";
+    elements.maintenanceState.dataset.state = "fail";
+    elements.maintenanceList.innerHTML =
+      `<div class="maintenance-empty is-error">无法读取维护计划：${escapeHtml(error.message)}</div>`;
     elements.retentionState.textContent = "不可用";
     elements.retentionState.dataset.state = "fail";
     elements.retentionUsage.textContent = "--";

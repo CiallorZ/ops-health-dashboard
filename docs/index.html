@@ -1203,14 +1203,14 @@
       <div class="wrap">
         <section class="hero" aria-labelledby="title">
           <div class="hero-copy">
-<p class="kicker"><span class="dot" aria-hidden="true"></span> LOCAL-FIRST OBSERVABILITY · v0.9.0</p>
+<p class="kicker"><span class="dot" aria-hidden="true"></span> LOCAL-FIRST OBSERVABILITY · v0.10.0</p>
             <h1 id="title">把异常<br><em>提前看见</em><span class="period">。</span></h1>
             <p class="lead">
               ICMP、TCP、TLS 与 HTTP 在后台持续采样，汇入同一条实时时间线。
               每项资产拥有 heartbeat、可用率、真实状态变化与 Webhook 投递证据，没有伪造成功率。
             </p>
             <div class="cta">
-<a class="btn primary" href="downloads/sentinel-0.9.0.zip">下载 v0.9.0 →</a>
+<a class="btn primary" href="downloads/sentinel-0.10.0.zip">下载 v0.10.0 →</a>
               <a class="btn ghost" href="#demo">运行本地 Demo</a>
             </div>
             <dl class="facts">
@@ -1271,7 +1271,7 @@
         <section class="section" id="features" aria-labelledby="features-title">
           <div class="section-head">
             <p class="kicker">01 / CAPABILITIES</p>
-            <h2 id="features-title">十一件事，形成完整监测闭环</h2>
+            <h2 id="features-title">十二件事，形成完整监测闭环</h2>
             <p>借鉴 Uptime Kuma 的后台监测、heartbeat、状态迁移与通知逻辑，同时保留 Sentinel 的零依赖、本地优先和证据边界。</p>
           </div>
 
@@ -1331,6 +1331,11 @@
               <h3>有界历史留存</h3>
               <p>单文件 4 MiB、2 份归档、最多加载 5000 行；超额自动轮转，截断状态在 API 和页面如实标注。</p>
             </article>
+            <article class="feature" data-tone="amber">
+              <span class="index">12</span>
+              <h3>计划维护窗口</h3>
+              <p>发布或迁移期间继续真实采样，只抑制被覆盖检查的 Webhook，并把窗口名称写进告警账本，避免告警风暴。</p>
+            </article>
           </div>
         </section>
 
@@ -1347,7 +1352,7 @@
                 src="assets/dashboard-desktop.png"
                 alt="桌面端看板完整界面"
                 width="1440"
-                height="2213"
+                height="2926"
                 loading="lazy"
               >
               <figcaption class="gallery-caption">
@@ -1360,7 +1365,7 @@
                 src="assets/dashboard-mobile.png"
                 alt="移动端看板界面"
                 width="390"
-                height="4294"
+                height="5149"
                 loading="lazy"
               >
               <figcaption class="gallery-caption">
@@ -1408,6 +1413,9 @@
               </div>
               <div class="demo-event" data-tone="ok">
                 <time>00:30</time><strong>NEXT SAMPLE</strong><span>浏览器关闭，后台仍按 10 秒周期采样</span>
+              </div>
+              <div class="demo-event" data-tone="warn">
+                <time>00:40</time><strong>MAINTENANCE</strong><span>结算服务发布窗口生效，告警记为 suppressed</span>
               </div>
               <div class="demo-command">
                 <span>快速复现</span>
@@ -1460,8 +1468,8 @@
                 <span>01 / WINDOWS</span>
                 <h3>便携源码包</h3>
                 <p>下载 ZIP，解压，确认 Python 3.11+，双击 <code>start-sentinel.cmd</code>。</p>
-                <a href="downloads/sentinel-0.9.0.zip">下载 v0.9.0 ↗</a>
-                <a href="downloads/sentinel-0.9.0.zip.sha256">校验文件</a>
+                <a href="downloads/sentinel-0.10.0.zip">下载 v0.10.0 ↗</a>
+                <a href="downloads/sentinel-0.10.0.zip.sha256">校验文件</a>
               </article>
               <article class="install-card" data-tone="amber">
                 <span>02 / DOCKER</span>
@@ -1479,14 +1487,15 @@
             <ol class="steps compact-steps">
               <li><b>编辑 checks.json</b><br>声明 HTTP、TCP、TLS、ICMP 目标、分组与阈值。</li>
               <li><b>配置后台周期与告警</b><br>设置 <code>monitor_interval_seconds</code>；生产环境优先用 <code>*_env</code> 注入 Webhook 秘密。</li>
+              <li><b>安排维护窗口</b><br>在 <code>maintenance_windows</code> 中声明发布时段与覆盖检查；窗口内继续采样，只抑制告警。</li>
               <li><b>打开并持续观测</b><br>页面每 10 秒同步最新快照，后台持续采样，异常迁移写入告警账本。</li>
             </ol>
           </div>
 
           <div class="terminal" aria-label="安装与启动命令">
-            <div class="terminal-bar">POWERSHELL / SENTINEL v0.9.0</div>
+            <div class="terminal-bar">POWERSHELL / SENTINEL v0.10.0</div>
             <pre><span class="c"># 1. 下载并解压便携包后</span>
-<span class="g">cd</span> sentinel-0.9.0
+<span class="g">cd</span> sentinel-0.10.0
 <span class="g">.\start-sentinel.cmd</span>
 
 <span class="c"># 2. 或直接从源码启动</span>
@@ -1507,7 +1516,10 @@
 <span class="c"># 6. 检查历史留存上限与真实占用</span>
 <span class="g">curl</span> http://127.0.0.1:8080/api/health
 
-<span class="c"># 7. 仅调试页面，不启动后台采样</span>
+<span class="c"># 7. 读取维护窗口与告警抑制状态</span>
+<span class="g">curl</span> http://127.0.0.1:8080/api/maintenance
+
+<span class="c"># 8. 仅调试页面，不启动后台采样</span>
 <span class="g">python</span> server.py --no-scheduler --version</pre>
           </div>
         </section>
@@ -1540,7 +1552,7 @@
       </div>
 
       <footer class="wrap">
-        <span>SENTINEL v0.9.0 · MIT LICENSE</span>
+        <span>SENTINEL v0.10.0 · MIT LICENSE</span>
         <span>Python standard library · no build chain</span>
         <a href="https://github.com/CiallorZ/ops-health-dashboard">github.com/CiallorZ/ops-health-dashboard ↗</a>
       </footer>

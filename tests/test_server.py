@@ -174,6 +174,19 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(body["tracked"], 0)
 
+    def test_maintenance_endpoint_reports_no_windows_by_default(self):
+        status, _, body = self.get_json("/api/maintenance")
+        self.assertEqual(status, 200)
+        self.assertFalse(body["configured"])
+        self.assertEqual(body["active"], [])
+        self.assertEqual(body["upcoming"], [])
+        self.assertEqual(body["active_check_ids"], [])
+
+        status, _, snapshot = self.get_json("/api/status?force=1")
+        self.assertEqual(status, 200)
+        self.assertIn("maintenance", snapshot["automation"])
+        self.assertIn("retention", snapshot["automation"])
+
     def test_unknown_api_is_json_404(self):
         with self.assertRaises(urllib.error.HTTPError) as raised:
             urllib.request.urlopen(self.base + "/api/nope", timeout=5)

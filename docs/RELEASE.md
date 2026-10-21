@@ -46,7 +46,7 @@
 `CHANGELOG.md` 按 Keep a Changelog 格式维护：
 
 ```markdown
-## [0.9.0] - 2026-10-21
+## [0.10.0] - 2026-10-21
 
 ### Added
 - ...

@@ -236,10 +236,13 @@ class AlertDispatcher:
         check: CheckResult,
         previous_status: str | None,
         summary: dict[str, Any],
+        *,
+        maintenance_name: str | None = None,
     ) -> None:
         event = _event_name(previous_status, check.status)
         now_monotonic = time.monotonic()
         key = (check.id, previous_status, check.status)
+        in_maintenance = bool(maintenance_name)
         with self._lock:
             if self._closed:
                 return
@@ -250,7 +253,9 @@ class AlertDispatcher:
                 and now_monotonic - last_sent < self.cooldown_seconds
             )
             at_capacity = self._pending >= MAX_PENDING_DELIVERIES
-            if not suppress_for_cooldown and not at_capacity:
+            if not suppress_for_cooldown and not at_capacity and not in_maintenance:
+                # A maintenance suppression must not start a cooldown, so the
+                # first real transition after the window still gets delivered.
                 self._cooldowns[key] = now_monotonic
 
         created_at = isoformat(utc_now())
@@ -268,11 +273,13 @@ class AlertDispatcher:
             "http_status": None,
             "detail": None,
         }
-        if suppress_for_cooldown or at_capacity:
+        if suppress_for_cooldown or at_capacity or in_maintenance:
             record["status"] = "suppressed"
             record["completed_at"] = created_at
             record["detail"] = (
-                "cooldown window"
+                f"maintenance window: {maintenance_name[:80]}"
+                if in_maintenance
+                else "cooldown window"
                 if suppress_for_cooldown
                 else "delivery queue is full"
             )

@@ -11,9 +11,9 @@
 [GitHub Actions](https://github.com/CiallorZ/ops-health-dashboard/actions/workflows/ci.yml)
 · [Python 3.11+](https://www.python.org/)
 · [MIT License](LICENSE)
-· [v0.9.0](VERSION)
+· [v0.10.0](VERSION)
 
-[下载 v0.9.0](docs/downloads/sentinel-0.9.0.zip)
+[下载 v0.10.0](docs/downloads/sentinel-0.10.0.zip)
 · [介绍页](docs/index.html)
 · [安全边界](docs/SECURITY.md)
 · [测试说明](docs/TESTING.md)
@@ -38,6 +38,7 @@ Sentinel 面向“先自己看见，再等人投诉”的场景：本机或内�
 - 证书到期日历只统计真实 TLS 握手返回的到期时间，按阈值分级并给出最近到期；
 - 历史文件有硬上限：单文件 4 MiB、2 份归档、最多加载 5000 行，超出即轮转并如实标注截断；
 - 状态变化可投递到 Webhook，并保留冷却、重试和最终送达结果；
+- 计划维护窗口只抑制告警、不停止采样，账本会写明抑制原因；
 - 离线报告会明确标注已测量、已跳过与未测量能力。
 
 ## 效果预览
@@ -95,7 +96,7 @@ Sentinel 是独立的 Python 标准库实现，不复制 Uptime Kuma 的 Vue / S
 
 | 方式 | 适合场景 | 入口 |
 |---|---|---|
-| Windows 便携包 | 下载后直接运行，不需要构建 | [下载 `sentinel-0.9.0.zip`](docs/downloads/sentinel-0.9.0.zip) · [SHA256](docs/downloads/sentinel-0.9.0.zip.sha256) |
+| Windows 便携包 | 下载后直接运行，不需要构建 | [下载 `sentinel-0.10.0.zip`](docs/downloads/sentinel-0.10.0.zip) · [SHA256](docs/downloads/sentinel-0.10.0.zip.sha256) |
 | Docker Compose | Linux 服务器或隔离环境 | 仓库根目录执行 `docker compose up --build -d` |
 | 源码运行 | 开发、审计与自定义 | `git clone` 后执行 `python server.py` |
 
@@ -146,6 +147,16 @@ python server.py --no-scheduler
     "tls_warn_days": 30,
     "tls_fail_days": 7
   },
+  "maintenance_windows": [
+    {
+      "id": "release-window",
+      "name": "结算服务发布窗口",
+      "starts_at": "2026-10-21T02:00:00Z",
+      "ends_at": "2026-10-21T04:00:00Z",
+      "check_ids": ["api"],
+      "suppress_alerts": true
+    }
+  ],
   "checks": [
     {
       "id": "api",
@@ -205,6 +216,9 @@ python server.py --no-scheduler
 | `notifications.cooldown_seconds` | 同一检查同一状态迁移的抑制窗口，`0–86400` 秒 |
 | `notifications.timeout_seconds` | 单次 Webhook 请求超时，`0.2–30` 秒 |
 | `notifications.retry_attempts` | Webhook 失败后的额外尝试次数，`0–2` |
+| `maintenance_windows` | 有界维护窗口列表，最多 20 个，每个最长 30 天；时间必须带时区偏移 |
+| `maintenance_windows[].check_ids` | 只对列出的检查生效；省略或空数组表示全部检查 |
+| `maintenance_windows[].suppress_alerts` | 默认 `true`；设为 `false` 只展示窗口、不抑制告警 |
 
 > **安全提醒**：不要在 `target`、名称或描述中写入密码、Token、Cookie 或带凭据的 URL。后端会拒绝 URL 内嵌凭据，但配置本身仍应保持干净。
 
@@ -223,6 +237,7 @@ python server.py --no-scheduler
 | `GET` | `/api/alerts?limit=12` | 读取脱敏的 Webhook 投递账本 |
 | `GET` | `/api/trends?days=7` | 按真实 UTC 日读取有界可用率与 p50/p95；`days` 限制为 `1–30` |
 | `GET` | `/api/certificates` | 读取真实 TLS 握手得到的有界证书到期日历 |
+| `GET` | `/api/maintenance` | 读取进行中与即将开始的维护窗口、覆盖范围与告警抑制状态 |
 | `GET` | `/api/report` | 下载当前快照的离线 HTML 报告 |
 | `POST` | `/api/refresh` | 强制刷新并返回最新快照 |
 
@@ -340,6 +355,35 @@ python server.py --no-scheduler
 
 `grade` 由配置的 `tls_warn_days` / `tls_fail_days` 决定：`critical` 表示剩余天数已低于失败阈值，`warning` 低于预警阈值，其余为 `healthy`。`verified` 为 `false` 时表示该检查关闭了证书链验证，剩余天数的可信度也随之下降。
 
+### 维护窗口
+
+维护窗口用于发布、迁移或演练期间，**不改变检测事实，只抑制告警**：
+
+```json
+{
+  "configured": true,
+  "active": [
+    {
+      "id": "release-window",
+      "name": "结算服务发布窗口",
+      "starts_at": "2026-10-21T02:00:00Z",
+      "ends_at": "2026-10-21T04:00:00Z",
+      "check_ids": ["api"],
+      "suppress_alerts": true,
+      "state": "active",
+      "remaining_seconds": 2331
+    }
+  ],
+  "upcoming": [],
+  "active_check_ids": ["api"],
+  "suppressed_alert_checks": 1
+}
+```
+
+窗口内的检查仍然真实采样：状态、延迟、heartbeat、趋势与页面展示都不变，只是在状态迁移时把 Webhook 记为 `suppressed`，并在账本 `detail` 中写入 `maintenance window: <名称>`。抑制不会启动冷却，因此窗口结束后的第一次真实迁移仍会正常投递。
+
+时间必须带显式时区偏移（`Z` 或 `+08:00`）；不带偏移的本地时间会被拒绝，避免跨时区误判。`check_ids` 引用不存在的检查会直接导致配置加载失败，而不是静默失效。
+
 ## 架构
 
 ```text
@@ -350,6 +394,7 @@ CheckRunnerService
     │  线程池并发 · 独立超时 · 受限重试 · 结果归一化 · 状态迁移
     ├── BackgroundMonitor  后台周期采样（浏览器关闭仍运行）
     ├── AlertDispatcher    Webhook 冷却 / 重试 / 签名 / 脱敏账本
+    ├── maintenance        有界维护窗口（只抑制告警，不停止采样）
     ├── summarize_certificates 证书到期日历（有界、只信真实握手）
     ├── dashboard/       实时页面（原生 JS）
     ├── /api/*           只读 API
@@ -413,7 +458,7 @@ docker compose up --build -d
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-release.ps1
 ```
 
-脚本会生成 `dist/sentinel-0.9.0.zip` 与对应的 `.sha256`，包含源码、默认配置、启动脚本、演示替身和文档。`dist/` 已加入 `.gitignore`，不会污染源码提交；脚本同时把最终包和校验文件复制到 `docs/downloads/`，供 README 与介绍页直接下载。构建包时不会把 `docs/downloads/` 再次打包，避免自包含递归。
+脚本会生成 `dist/sentinel-0.10.0.zip` 与对应的 `.sha256`，包含源码、默认配置、启动脚本、演示替身和文档。`dist/` 已加入 `.gitignore`，不会污染源码提交；脚本同时把最终包和校验文件复制到 `docs/downloads/`，供 README 与介绍页直接下载。构建包时不会把 `docs/downloads/` 再次打包，避免自包含递归。
 
 ## Windows 常驻
 
@@ -455,7 +500,8 @@ python server.py --port 18080 --config examples\checks.demo.json --data-dir data
 - [x] `v0.7` 长期趋势：真实 UTC 日聚合、可用率、p50/p95 与看板 7 天面板。
 - [x] `v0.8` 证书到期日历：`/api/certificates`、按阈值分级、看板证书面板与单元测试。
 - [x] `v0.9` 历史留存：4 MiB 单文件上限、2 份归档、5000 行加载上限、如实标注截断。
-- [ ] `v0.10` 多用户：只读分享、反向代理鉴权示例。
+- [x] `v0.10` 计划维护：有界维护窗口、告警抑制、抑制原因入账与看板面板。
+- [ ] `v0.11` 访问控制：只读分享、反向代理鉴权示例。
 
 详见 [ROADMAP.md](ROADMAP.md)。
 

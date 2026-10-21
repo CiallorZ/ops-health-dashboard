@@ -4,6 +4,31 @@ All notable changes are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.10.0] - 2026-10-21
+
+### Added
+
+- Planned maintenance windows: `maintenance_windows` in `checks.json`
+  declares a bounded list (max 20, max 30 days each) of time-boxed windows
+  that can target specific checks or every check.
+- While a window is active, sampling and dashboard state keep working exactly
+  as before; only Webhook delivery is suppressed, and the alert ledger stores
+  the window name as the suppression reason.
+- `GET /api/maintenance` and `automation.maintenance` in `/api/status` report
+  active windows, upcoming windows, covered check ids, and how many checks
+  currently have alerting suppressed.
+- The dashboard gained a maintenance panel showing active/upcoming windows,
+  their scope, remaining time and whether alerting is suppressed.
+
+### Security
+
+- Window timestamps must carry an explicit timezone offset; naive datetimes
+  are rejected instead of being silently interpreted in local time.
+- `check_ids` referencing an unknown check fails configuration loading, so a
+  typo cannot silently disable nothing.
+- Suppressing an alert during maintenance does not start a cooldown, so the
+  first real transition after the window still gets delivered.
+
 ## [0.9.0] - 2026-10-21
 
 ### Added
