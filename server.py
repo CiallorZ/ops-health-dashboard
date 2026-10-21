@@ -118,6 +118,9 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
                 },
             )
             return
+        if parsed.path == "/api/certificates":
+            self._send_json(HTTPStatus.OK, self._certificates())
+            return
         if parsed.path == "/api/report":
             self._send_report()
             return
@@ -164,6 +167,12 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
         return {
             "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             **self.server.runner.get_trends(days=days),
+        }
+
+    def _certificates(self) -> dict[str, Any]:
+        return {
+            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            **self.server.runner.get_certificates(),
         }
 
     def _send_report(self) -> None:

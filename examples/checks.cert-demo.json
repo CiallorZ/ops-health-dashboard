@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "monitor_interval_seconds": 30,
+  "thresholds": {
+    "latency_warn_ms": 800,
+    "latency_fail_ms": 2500,
+    "tls_warn_days": 30,
+    "tls_fail_days": 7
+  },
+  "checks": [
+    {
+      "id": "tls-github",
+      "name": "GitHub TLS 证书",
+      "group": "外部依赖",
+      "type": "tls",
+      "target": "github.com",
+      "port": 443,
+      "timeout_seconds": 6,
+      "tags": ["public", "certificate"]
+    },
+    {
+      "id": "tls-example",
+      "name": "Example TLS 证书",
+      "group": "外部依赖",
+      "type": "tls",
+      "target": "example.com",
+      "port": 443,
+      "timeout_seconds": 6,
+      "tags": ["public", "certificate"]
+    },
+    {
+      "id": "tls-bad-handshake",
+      "name": "握手失败目标",
+      "group": "外部依赖",
+      "type": "tls",
+      "target": "127.0.0.1",
+      "port": 18090,
+      "timeout_seconds": 2,
+      "tags": ["negative", "certificate"]
+    },
+    {
+      "id": "http-no-cert",
+      "name": "无证书指标的 HTTP",
+      "group": "本机服务",
+      "type": "http",
+      "target": "http://127.0.0.1:18080/api/health",
+      "expected_status": [200],
+      "timeout_seconds": 2,
+      "tags": ["self", "api"]
+    }
+  ]
+}

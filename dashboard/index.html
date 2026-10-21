@@ -198,6 +198,25 @@
               </div>
             </section>
 
+            <section class="panel certificate-panel" id="certificate-panel" aria-labelledby="certificate-title">
+              <div class="panel-heading compact">
+                <div>
+                  <p class="panel-kicker">CERTIFICATES</p>
+                  <h2 id="certificate-title">证书到期日历</h2>
+                </div>
+                <span class="mini-legend" id="certificate-window">读取中</span>
+              </div>
+              <dl class="certificate-summary">
+                <div><dt>跟踪证书</dt><dd id="certificate-tracked">--</dd></div>
+                <div><dt>最近到期</dt><dd id="certificate-nearest">--</dd></div>
+                <div><dt>预警 / 紧急</dt><dd id="certificate-counts">--</dd></div>
+              </dl>
+              <div class="certificate-list" id="certificate-list" aria-live="polite">
+                <div class="certificate-empty">正在读取证书证据</div>
+              </div>
+              <p class="config-note">只统计真实 TLS 握手返回的到期时间；握手失败或没有证书指标的检查不会出现，也不推测。</p>
+            </section>
+
             <section class="panel automation-panel" id="automation-panel" aria-labelledby="automation-title">
               <div class="panel-heading compact">
                 <div>
@@ -247,7 +266,7 @@
       </main>
 
       <footer>
-        <span>SENTINEL <b>v0.7.0</b></span>
+        <span>SENTINEL <b>v0.8.0</b></span>
         <span>Zero-dependency / Python standard library</span>
         <span id="footer-state">本地数据 · 不采集凭据</span>
       </footer>

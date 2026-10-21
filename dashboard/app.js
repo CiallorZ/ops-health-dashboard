@@ -26,6 +26,11 @@ const elements = {
   trendDaysWithData: document.querySelector("#trend-days-with-data"),
   trendPercentiles: document.querySelector("#trend-percentiles"),
   longTrendList: document.querySelector("#long-trend-list"),
+  certificateWindow: document.querySelector("#certificate-window"),
+  certificateTracked: document.querySelector("#certificate-tracked"),
+  certificateNearest: document.querySelector("#certificate-nearest"),
+  certificateCounts: document.querySelector("#certificate-counts"),
+  certificateList: document.querySelector("#certificate-list"),
   schedulerState: document.querySelector("#scheduler-state"),
   schedulerInterval: document.querySelector("#scheduler-interval"),
   schedulerLast: document.querySelector("#scheduler-last"),
@@ -117,6 +122,19 @@ function formatDate(value) {
 
 function formatLatency(value) {
   return Number.isFinite(value) ? `${Math.round(value)} ms` : "--";
+}
+
+function formatDays(value) {
+  // Number(null) is 0, so missing evidence must be rejected before coercion:
+  // "no certificate measured yet" is not the same as "expires today".
+  if (value === null || value === undefined || typeof value !== "number") {
+    return "--";
+  }
+  if (!Number.isFinite(value)) return "--";
+  const days = value;
+  if (days <= 0) return "已过期";
+  if (days < 1) return "不足 1 天";
+  return `${Math.round(days)} 天`;
 }
 
 function escapeHtml(value) {
@@ -417,6 +435,84 @@ async function loadTrends() {
   }
 }
 
+const certificateGrades = {
+  healthy: "有效",
+  warning: "预警",
+  critical: "紧急",
+};
+
+function formatExpiry(value) {
+  if (!value) return "时间未知";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "时间未知";
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "UTC",
+  }).format(date);
+}
+
+function renderCertificates(calendar) {
+  const counts = calendar?.counts ?? {};
+  const tracked = Number(calendar?.tracked ?? 0);
+  const window_days = Number(calendar?.upcoming_window_days ?? 90);
+  elements.certificateWindow.textContent = `近 ${window_days} 天`;
+  elements.certificateTracked.textContent = Number.isFinite(tracked)
+    ? `${tracked} 张`
+    : "--";
+  elements.certificateNearest.textContent = formatDays(
+    calendar?.nearest_remaining_days,
+  );
+  elements.certificateCounts.textContent = `${counts.warning ?? 0} / ${counts.critical ?? 0}`;
+
+  const upcoming = Array.isArray(calendar?.upcoming) ? calendar.upcoming : [];
+  if (!tracked) {
+    elements.certificateList.innerHTML =
+      '<div class="certificate-empty">还没有 TLS 检查返回证书指标</div>';
+    return;
+  }
+  if (!upcoming.length) {
+    elements.certificateList.innerHTML =
+      `<div class="certificate-empty">跟踪 ${tracked} 张证书，近 ${window_days} 天内没有到期</div>`;
+    return;
+  }
+
+  elements.certificateList.innerHTML = upcoming.map((entry) => {
+    const grade = certificateGrades[entry.grade] ? entry.grade : "healthy";
+    const remaining = formatDays(Number(entry.remaining_days));
+    const verified = entry.verified ? "已验证链" : "未验证链";
+    const commonName = entry.common_name ? ` · CN ${entry.common_name}` : "";
+    const port = Number.isFinite(Number(entry.port)) ? `:${Number(entry.port)}` : "";
+    return `
+      <article class="certificate-row" data-grade="${escapeHtml(grade)}">
+        <div class="certificate-head">
+          <strong>${escapeHtml(entry.name || entry.check_id)}</strong>
+          <span class="certificate-days">${escapeHtml(remaining)}</span>
+        </div>
+        <p class="certificate-target">
+          ${escapeHtml(entry.group || "未分组")} · ${escapeHtml(`${entry.target ?? ""}${port}`)}
+        </p>
+        <div class="certificate-meta">
+          <span>${escapeHtml(certificateGrades[grade])}</span>
+          <span>${escapeHtml(verified)}</span>
+          <span>${escapeHtml(`到期 ${formatExpiry(entry.expires_at)}${commonName}`)}</span>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+async function loadCertificates() {
+  try {
+    renderCertificates(await fetchJson("/api/certificates"));
+  } catch (error) {
+    elements.certificateWindow.textContent = "不可用";
+    elements.certificateList.innerHTML =
+      `<div class="certificate-empty is-error">证书日历读取失败：${escapeHtml(error.message)}</div>`;
+  }
+}
+
 function renderAutomation(data) {
   const automation = data.automation ?? {};
   const scheduler = automation.scheduler ?? {};
@@ -522,6 +618,7 @@ async function loadStatus({ force = false } = {}) {
     renderTransitions();
     renderAutomation(data);
     await loadTrends();
+    await loadCertificates();
     setConnection("ok", "实时");
     if (force) showToast("已刷新全部检测");
   } catch (error) {
@@ -537,6 +634,9 @@ async function loadStatus({ force = false } = {}) {
     elements.trendSource.textContent = "不可用";
     elements.longTrendList.innerHTML =
       `<div class="trend-empty is-error">无法读取按天聚合：${escapeHtml(error.message)}</div>`;
+    elements.certificateWindow.textContent = "不可用";
+    elements.certificateList.innerHTML =
+      `<div class="certificate-empty is-error">无法读取证书日历：${escapeHtml(error.message)}</div>`;
   } finally {
     loading = false;
     elements.refreshButton.disabled = false;

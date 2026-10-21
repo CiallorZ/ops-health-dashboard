@@ -12,6 +12,7 @@ from typing import Any, Callable
 
 from .alerts import AlertDispatcher
 from .checks import CheckResult, run_check
+from .certificates import summarize_certificates
 from .config import CheckConfig, DashboardConfig, Thresholds
 from .history import (
     HistoryStore,
@@ -124,6 +125,15 @@ class CheckRunnerService:
             history,
             snapshot.get("checks", []),
             days=bounded_days,
+        )
+
+    def get_certificates(self) -> dict[str, Any]:
+        """Return a bounded certificate calendar from the latest TLS evidence."""
+        snapshot = self._cached if self._cached is not None else self.get_snapshot()
+        return summarize_certificates(
+            snapshot.get("checks", []),
+            tls_warn_days=self.config.thresholds.tls_warn_days,
+            tls_fail_days=self.config.thresholds.tls_fail_days,
         )
 
     def _dispatch_transitions(

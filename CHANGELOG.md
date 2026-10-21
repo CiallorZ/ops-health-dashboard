@@ -4,6 +4,30 @@ All notable changes are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] - 2026-10-21
+
+### Added
+
+- A bounded certificate expiry calendar now derives per-check remaining days
+  from the real `expires_at` returned by each TLS handshake, and exposes them
+  through `GET /api/certificates`.
+- The calendar grades each certificate against the configured
+  `tls_warn_days` / `tls_fail_days` thresholds, counts expired / critical /
+  warning / healthy certificates, and keeps at most eight entries inside the
+  90-day upcoming window.
+- The dashboard gained a certificate panel showing tracked certificates, the
+  nearest expiry, warn/critical counts, and an upcoming list with expiry date,
+  common name, and whether the chain was verified.
+- `monitor/certificates.py` is covered by unit tests for grading, sorting,
+  bounding, stale-value handling, missing metrics, and clamped limits.
+
+### Security
+
+- The certificate calendar only reports values measured by a completed TLS
+  handshake; failed handshakes, non-TLS checks, and malformed metrics are
+  skipped rather than filled with assumed expiry dates. The endpoint reuses
+  the same-origin API and never exposes webhook URLs or signing secrets.
+
 ## [0.7.0] - 2026-10-21
 
 ### Added

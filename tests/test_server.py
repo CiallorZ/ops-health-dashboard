@@ -122,6 +122,39 @@ class ServerTests(unittest.TestCase):
         )
         self.assertFalse(body["automation"]["scheduler"]["running"])
 
+    def test_certificates_endpoint_reports_bounded_calendar(self):
+        status, _, body = self.get_json("/api/certificates")
+        self.assertEqual(status, 200)
+        self.assertEqual(body["tracked"], 0)
+        self.assertEqual(body["upcoming"], [])
+        self.assertEqual(body["counts"], {
+            "expired": 0,
+            "critical": 0,
+            "warning": 0,
+            "healthy": 0,
+        })
+        self.assertEqual(body["thresholds"]["tls_warn_days"], 30)
+        self.assertEqual(body["thresholds"]["tls_fail_days"], 7)
+
+    def test_certificates_endpoint_hides_metrics_from_non_tls_checks(self):
+        self.server.runner.get_snapshot = lambda **_kwargs: {
+            "generated_at": "2026-10-21T00:00:00Z",
+            "summary": {},
+            "checks": [
+                {
+                    "id": "plain-http",
+                    "name": "Plain HTTP",
+                    "type": "http",
+                    "target": "http://127.0.0.1/",
+                    "status": "ok",
+                    "metrics": {"status_code": 200},
+                }
+            ],
+        }
+        status, _, body = self.get_json("/api/certificates")
+        self.assertEqual(status, 200)
+        self.assertEqual(body["tracked"], 0)
+
     def test_unknown_api_is_json_404(self):
         with self.assertRaises(urllib.error.HTTPError) as raised:
             urllib.request.urlopen(self.base + "/api/nope", timeout=5)

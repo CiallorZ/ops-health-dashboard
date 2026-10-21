@@ -11,10 +11,12 @@ class UiContractTests(unittest.TestCase):
         self.assertIn("/api/status", javascript)
         self.assertIn("/api/config", javascript)
         self.assertIn("/api/trends?days=7", javascript)
+        self.assertIn("/api/certificates", javascript)
         self.assertIn("check_history", javascript)
         self.assertIn("REFRESH_MS = 10_000", javascript)
         self.assertIn("renderAutomation", javascript)
         self.assertIn("renderLongTrend", javascript)
+        self.assertIn("renderCertificates", javascript)
 
     def test_ui_escapes_remote_text(self):
         javascript = (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
@@ -27,6 +29,20 @@ class UiContractTests(unittest.TestCase):
         self.assertIn("check.tags", javascript)
         self.assertIn("renderTransitions", javascript)
 
+    def test_certificate_calendar_renders_truthful_states(self):
+        javascript = (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
+        html = (ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("function formatDays", javascript)
+        # Missing evidence must render as "--", never as "expired".
+        self.assertIn('typeof value !== "number"', javascript)
+        self.assertIn("certificate-empty", javascript)
+        self.assertIn("还没有 TLS 检查返回证书指标", javascript)
+        self.assertIn("renderCertificates", javascript)
+        self.assertIn("certificateGrades", javascript)
+        self.assertIn('id="certificate-nearest"', html)
+        self.assertIn('id="certificate-counts"', html)
+        self.assertIn('id="certificate-tracked"', html)
+
     def test_document_has_accessibility_hooks(self):
         html = (ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
         self.assertIn('lang="zh-CN"', html)
@@ -37,6 +53,8 @@ class UiContractTests(unittest.TestCase):
         self.assertIn('id="alert-list"', html)
         self.assertIn('id="long-trend-panel"', html)
         self.assertIn('id="long-trend-list"', html)
+        self.assertIn('id="certificate-panel"', html)
+        self.assertIn('id="certificate-list"', html)
         self.assertIn("prefers-reduced-motion", (ROOT / "dashboard" / "styles.css").read_text(encoding="utf-8"))
 
     def test_current_version_is_consistent(self):

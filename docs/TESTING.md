@@ -28,6 +28,7 @@ git diff --check
 | `tests/test_checks.py` | HTTP 状态码、跳转、TLS 边界、User-Agent 版本 |
 | `tests/test_config.py` | 默认值、分组、重试边界、凭据拒绝、重复 ID |
 | `tests/test_history.py` | 逐项可用率、延迟聚合、旧历史兼容、事件数量上限；真实 UTC 日趋势聚合、p50/p95、缺失日期不补造 |
+| `tests/test_certificates.py` | 证书分级、按剩余天数排序、上限裁剪、过期与窗口边界、陈旧值重算、缺失与畸形指标跳过、链验证标记 |
 | `tests/test_alerts.py` | Webhook 本地替身、HMAC 签名、冷却抑制、重试上限、秘密脱敏 |
 | `tests/test_scheduler.py` | 后台循环采样、异常记录、停止与状态快照 |
 | `tests/test_runner.py` | 缓存、强制刷新、并发去重、受限重试与恢复证据 |
@@ -54,6 +55,7 @@ API / UI 改动需要在非 `8080` 的临时端口启动真实服务：
 11. 配置本地 Webhook 替身，确认 `ok → fail` 与恢复事件都能投递，账本和 `/api/alerts` 不暴露 URL 或签名秘密。
 12. 确认后台调度在页面关闭后仍持续采样，`/api/health` 与 `/api/status` 的 `automation.scheduler` 状态一致。
 13. 请求 `/api/trends?days=7`，确认只出现有真实采样的 UTC 日期；`days=999` 被限制到 30，`days=soon` 回退到 7；看板长期趋势面板、空状态、错误状态与 390px 布局可读。
+14. 请求 `/api/certificates`，确认 `tracked` 只统计真实 TLS 握手返回 `expires_at` 的检查；剩余天数随当前 UTC 时间变化而不是缓存中的旧值；`upcoming` 最多 8 条且只覆盖 90 天内到期；看板证书面板、空状态（没有 TLS 检查）与错误状态在 390px 下可读。
 
 ## 截图复现
 

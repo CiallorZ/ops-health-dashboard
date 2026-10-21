@@ -1011,6 +1011,121 @@ h2 {
   color: var(--red);
 }
 
+/* ---------- certificate calendar ---------- */
+.certificate-summary {
+  display: grid;
+  margin: 0;
+}
+
+.certificate-summary div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+
+.certificate-summary dt {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.certificate-summary dd {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 9px;
+  text-align: right;
+}
+
+.certificate-list {
+  display: grid;
+  margin-top: 12px;
+}
+
+.certificate-row {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 11px 0 11px 10px;
+  border-top: 1px solid var(--line);
+  border-left: 2px solid var(--acid);
+}
+
+.certificate-row:first-child {
+  border-top: 0;
+}
+
+.certificate-row[data-grade="warning"] {
+  border-left-color: var(--amber);
+}
+
+.certificate-row[data-grade="critical"] {
+  border-left-color: var(--red);
+}
+
+.certificate-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.certificate-head strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.certificate-days {
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.certificate-row[data-grade="warning"] .certificate-days {
+  color: var(--amber);
+}
+
+.certificate-row[data-grade="critical"] .certificate-days {
+  color: var(--red);
+}
+
+.certificate-target {
+  overflow: hidden;
+  margin: 0;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.certificate-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 8px;
+}
+
+.certificate-empty {
+  padding: 10px 0;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.certificate-empty.is-error {
+  color: var(--red);
+}
+
 .transition-list {
   display: grid;
 }
@@ -1510,6 +1625,16 @@ footer b {
 
   .long-trend-head span {
     text-align: left;
+  }
+
+  .certificate-head {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .certificate-target {
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   .check-toolbar {
