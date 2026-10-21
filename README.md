@@ -15,6 +15,7 @@
 
 [下载 v0.10.0](docs/downloads/sentinel-0.10.0.zip)
 · [介绍页](docs/index.html)
+· [架构与方向](docs/ARCHITECTURE.md)
 · [安全边界](docs/SECURITY.md)
 · [测试说明](docs/TESTING.md)
 · [发布流程](docs/RELEASE.md)
@@ -61,7 +62,7 @@ Sentinel 面向“先自己看见，再等人投诉”的场景：本机或内�
 - 状态迁移触发通知，避免把持续失败重复刷成告警风暴；
 - 桌面列表 + 侧栏、移动端单列的响应式阅读方式。
 
-Sentinel 是独立的 Python 标准库实现，不复制 Uptime Kuma 的 Vue / Socket.IO / 数据库架构，也没有内置账号、90+ 通知矩阵或维护窗口。它优先解决“单机、自托管、可审计、默认只监听回环地址”的轻量场景。
+Sentinel 是独立的 Python 标准库实现，不复制 Uptime Kuma 的 Vue / Socket.IO / 关系库架构，也没有内置账号、90+ 通知矩阵或多副本部署能力。它优先解决“单机、自托管、可审计、默认只监听回环地址”的轻量场景；维护窗口、证书日历、长期趋势与告警账本已经在 `v0.8`–`v0.10` 逐步补齐。
 
 ## 介绍页
 
@@ -501,9 +502,15 @@ python server.py --port 18080 --config examples\checks.demo.json --data-dir data
 - [x] `v0.8` 证书到期日历：`/api/certificates`、按阈值分级、看板证书面板与单元测试。
 - [x] `v0.9` 历史留存：4 MiB 单文件上限、2 份归档、5000 行加载上限、如实标注截断。
 - [x] `v0.10` 计划维护：有界维护窗口、告警抑制、抑制原因入账与看板面板。
-- [ ] `v0.11` 访问控制：只读分享、反向代理鉴权示例。
+- [ ] `v0.11` 单实例与运行时观测：文件锁、`/healthz` `/readyz` `/metrics`、systemd 样例。
+- [ ] `v0.12` 访问控制：只读分享令牌、反向代理鉴权示例、读取审计。
+- [ ] `v0.13` 存储演进：`schema_version`、`HistoryBackend`、SQLite 双写与迁移。
+- [ ] `v0.14` 探测扩展：探测注册表、DNS / UDP / gRPC / WS、出站 CIDR 策略。
+- [ ] `v0.15` 告警出口：Slack / Teams / PagerDuty 适配器、模板与静默规则。
+- [ ] `v0.16` 云原生：K8s manifests、Helm chart、镜像构建冒烟。
 
-详见 [ROADMAP.md](ROADMAP.md)。
+分层方向、缺口证据与每层的验收标准见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)；
+版本排期见 [ROADMAP.md](ROADMAP.md)。
 
 ## License
 

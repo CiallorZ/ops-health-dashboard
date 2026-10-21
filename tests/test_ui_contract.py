@@ -112,6 +112,26 @@ class UiContractTests(unittest.TestCase):
             self.assertTrue(artifact.is_file(), artifact)
             self.assertTrue(checksum.is_file(), checksum)
 
+    def test_architecture_doc_covers_layers_and_links_roadmap(self):
+        architecture = (ROOT / "docs" / "ARCHITECTURE.md").read_text(encoding="utf-8")
+        roadmap = (ROOT / "ROADMAP.md").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        for layer in (
+            "基础设施与进程模型",
+            "网络探测内核",
+            "安全与访问控制",
+            "云原生",
+            "中间件与告警出口",
+            "数据与存储",
+        ):
+            self.assertIn(layer, architecture)
+        # Gaps are referenced by id so roadmap items stay traceable to evidence.
+        for gap in ("G1", "G2", "G3", "G4", "G5", "G6", "G7"):
+            self.assertIn(gap, architecture)
+            self.assertIn(gap, roadmap)
+        self.assertIn("docs/ARCHITECTURE.md", roadmap)
+        self.assertIn("docs/ARCHITECTURE.md", readme)
+
 
 if __name__ == "__main__":
     unittest.main()

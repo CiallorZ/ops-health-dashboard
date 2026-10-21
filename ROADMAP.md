@@ -91,11 +91,65 @@
 
 ## 下一阶段
 
-### v0.11 多用户与访问控制
+分层方向与每层的“现状 → 缺口 → 目标 → 有界切片 → 验收标准”见
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。下表只保留可排期的版本视图。
 
-- [ ] 只读分享链接示例
-- [ ] 反向代理鉴权配置样例（Nginx / Caddy）
-- [ ] 禁止把认证信息写入仓库
+### 结构性缺口（先修再扩）
+
+| 编号 | 缺口 | 证据 | 归属版本 |
+|---|---|---|---|
+| G1 | 无单实例锁，两个进程共享 `data/` 会交错写入 | 全仓库无 `fcntl` / `msvcrt` / `O_EXCL` | `v0.11` |
+| G2 | 无 `/healthz` `/readyz` `/metrics` | `server.py` 仅有 `/api/health` | `v0.11` |
+| G3 | 仅 JSONL，无索引、无 `schema_version` | `monitor/history.py` 全文件扫描 | `v0.13` |
+| G4 | 探测类型固定四类 | `SUPPORTED_TYPES` 在 `monitor/config.py` | `v0.14` |
+| G5 | 无内置认证，分享依赖反代 | `server.py` 不读取 `Authorization` | `v0.12` |
+| G6 | 配置变更需重启 | 无热加载、无 `SIGHUP` 处理 | `v0.11` 之后 |
+| G7 | 告警出口只有通用 Webhook | `monitor/alerts.py` 单一 payload | `v0.15` |
+
+### v0.11 单实例与运行时可观测
+
+- [ ] `data/.sentinel.lock` 排他锁：POSIX `flock` / Windows `msvcrt` / `O_EXCL` 降级
+- [ ] 第二个进程启动失败并输出持有者 PID，退出码 3，不写入任何历史
+- [ ] `GET /healthz`（进程存活，不触发采样）
+- [ ] `GET /readyz`（配置已加载 + 数据目录可写 + 调度器状态），未就绪返回 `503` 与原因
+- [ ] `GET /metrics` Prometheus 文本格式：`sentinel_check_up`、`sentinel_check_latency_ms`、`sentinel_history_bytes`、`sentinel_alert_deliveries_total`
+- [ ] `deploy/systemd/sentinel.service` 样例（`Restart=on-failure`、`ProtectSystem=strict`）
+
+### v0.12 访问控制
+
+- [ ] 只读分享令牌（`--share-token-env`），仅放行只读 `GET`，`POST /api/refresh` 与 `/api/config` 始终要求本机
+- [ ] 令牌使用 `hmac.compare_digest`，不进入日志 / API / 报告
+- [ ] 反向代理鉴权配置样例（Nginx / Caddy），只含占位符
+- [ ] 读取审计事件：时间、路径、结果码、是否回环，不记录令牌
+
+### v0.13 存储演进
+
+- [ ] `history.jsonl` 增加 `schema_version`，未知版本降级解析
+- [ ] 抽出 `HistoryBackend`，新增 `SqliteBackend`（WAL、单写连接）
+- [ ] 首次启动从 JSONL 单向导入，保留原文件，写 `meta.migrated_at`
+- [ ] `/api/health` 暴露 `storage.backend` / `rows` / `oldest_sample_at`
+- [ ] 仅在满足“需要 > 30 天留存 / 检查数 > 200 / 需要任意时间段查询”之一时启动
+
+### v0.14 探测内核扩展
+
+- [ ] 探测注册表替代 `run_check` 的 `if/elif`，现有四类行为不变
+- [ ] `dns`：A/AAAA/CNAME、解析耗时、返回条数，`NXDOMAIN` 记为 `fail`
+- [ ] `udp`：仅用于明确会回包的协议，不做端口扫描
+- [ ] `grpc` / `websocket`：只做健康检查与握手，不做业务调用
+- [ ] 出站策略：`denied_cidrs`，配置校验阶段拒绝
+
+### v0.15 告警出口
+
+- [ ] `monitor/notifiers/` 适配器：`generic_webhook`（兼容现有）、`slack`、`teams`、`pagerduty`
+- [ ] 有界模板变量，渲染失败回退默认模板并记录原因
+- [ ] 静默规则与维护窗口叠加，账本统一记录 `suppressed_by`
+- [ ] 去重键跨 provider 共享冷却状态
+
+### v0.16 云原生交付
+
+- [ ] `deploy/k8s/`：Deployment（`/healthz` + `/readyz` 探针、resources、只读根文件系统）、Service、PVC、ConfigMap、Secret
+- [ ] `deploy/helm/sentinel/`：模板化上述资源，`values.yaml` 只暴露端口、镜像、资源、既有 PVC/Secret 名
+- [ ] CI 增加 `docker build` 冒烟（不推送镜像）
 
 ## 明确不做
 
