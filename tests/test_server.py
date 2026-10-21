@@ -83,6 +83,35 @@ class ServerTests(unittest.TestCase):
         self.assertNotIn("server-secret", json.dumps(body))
         self.assertNotIn("/hook", json.dumps(body))
 
+    def test_trends_endpoint_defaults_and_clamps_days(self):
+        self.server.runner.history.append(
+            {
+                "run_id": "run-injected",
+                "generated_at": "2026-10-19T00:00:00Z",
+                "checks": [{"id": "self", "status": "fail", "latency_ms": None}],
+            }
+        )
+
+        status, _, body = self.get_json("/api/trends")
+        self.assertEqual(status, 200)
+        self.assertEqual(body["days"], 7)
+        self.assertEqual(body["days_with_data"], 2)
+        self.assertTrue(body["generated_from_utc_days"])
+        injected_day = body["daily"]["2026-10-19"]
+        self.assertEqual(injected_day["samples"], 1)
+        self.assertEqual(injected_day["fail"], 1)
+        self.assertEqual(injected_day["availability_percent"], 0.0)
+        self.assertIsNone(injected_day["p50_latency_ms"])
+        self.assertEqual(body["checks"]["self"]["totals"]["fail"], 1)
+
+        status, _, clamped = self.get_json("/api/trends?days=999")
+        self.assertEqual(status, 200)
+        self.assertEqual(clamped["days"], 30)
+
+        status, _, invalid = self.get_json("/api/trends?days=soon")
+        self.assertEqual(status, 200)
+        self.assertEqual(invalid["days"], 7)
+
     def test_status_exposes_background_scheduler_state(self):
         status, _, body = self.get_json("/api/status?force=1")
         self.assertEqual(status, 200)

@@ -256,6 +256,67 @@ class RunnerTests(unittest.TestCase):
         )
 
 
+class TrendIntegrationTests(unittest.TestCase):
+    def test_snapshot_can_include_bounded_trends(self):
+        config = DashboardConfig(
+            version=1,
+            thresholds=Thresholds(),
+            checks=(CheckConfig(id="api", name="API", type="ping", target="127.0.0.1"),),
+        )
+        with TemporaryDirectory() as directory:
+            store = HistoryStore(directory)
+            store.append(
+                {
+                    "run_id": "run-1",
+                    "generated_at": "2026-10-20T23:59:59Z",
+                    "checks": [{"id": "api", "status": "fail", "latency_ms": None}],
+                }
+            )
+            runner = CheckRunnerService(
+                config,
+                store,
+                cache_seconds=60,
+                check_runner=fake_check,
+            )
+            without_trends = runner.get_snapshot(force=True)
+            with_trends = runner.get_snapshot(trend_days=7)
+
+        self.assertNotIn("trends", without_trends)
+        trends = with_trends["trends"]
+        self.assertEqual(trends["days"], 7)
+        self.assertEqual(trends["days_with_data"], 2)
+        self.assertEqual(trends["daily"]["2026-10-21"]["samples"], 1)
+        self.assertEqual(trends["daily"]["2026-10-20"]["availability_percent"], 0.0)
+        self.assertIsNone(trends["daily"]["2026-10-20"]["p50_latency_ms"])
+
+    def test_trend_endpoint_route_does_not_reuse_stale_history(self):
+        config = DashboardConfig(
+            version=1,
+            thresholds=Thresholds(),
+            checks=(CheckConfig(id="api", name="API", type="ping", target="127.0.0.1"),),
+        )
+        with TemporaryDirectory() as directory:
+            store = HistoryStore(directory)
+            runner = CheckRunnerService(
+                config,
+                store,
+                cache_seconds=60,
+                check_runner=fake_check,
+            )
+            runner.get_snapshot(force=True)
+            store.append(
+                {
+                    "run_id": "injected",
+                    "generated_at": "2026-10-19T00:00:00Z",
+                    "checks": [{"id": "api", "status": "warn", "latency_ms": 30.0}],
+                }
+            )
+            trends = runner.get_trends(days=30)
+
+        self.assertEqual(trends["days_with_data"], 2)
+        self.assertEqual(list(trends["daily"]), ["2026-10-21", "2026-10-19"])
+
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -21,6 +21,11 @@ const elements = {
   trendBars: document.querySelector("#trend-bars"),
   transitionList: document.querySelector("#transition-list"),
   monitorInterval: document.querySelector("#monitor-interval"),
+  trendSource: document.querySelector("#trend-source"),
+  trendDays: document.querySelector("#trend-days"),
+  trendDaysWithData: document.querySelector("#trend-days-with-data"),
+  trendPercentiles: document.querySelector("#trend-percentiles"),
+  longTrendList: document.querySelector("#long-trend-list"),
   schedulerState: document.querySelector("#scheduler-state"),
   schedulerInterval: document.querySelector("#scheduler-interval"),
   schedulerLast: document.querySelector("#scheduler-last"),
@@ -97,6 +102,21 @@ function formatTime(value) {
     minute: "2-digit",
     second: "2-digit",
   }).format(date);
+}
+
+function formatDate(value) {
+  if (!value) return "未知日期";
+  const date = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return "未知日期";
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "UTC",
+  }).format(date);
+}
+
+function formatLatency(value) {
+  return Number.isFinite(value) ? `${Math.round(value)} ms` : "--";
 }
 
 function escapeHtml(value) {
@@ -335,6 +355,68 @@ function renderTrend(history) {
   }).join("");
 }
 
+function renderLongTrend(trends) {
+  const daily = trends && typeof trends.daily === "object" && trends.daily !== null
+    ? Object.entries(trends.daily)
+    : [];
+  const days = Number(trends?.days ?? 7);
+  elements.trendDays.textContent = Number.isFinite(days) ? `${days} 天` : "--";
+  elements.trendDaysWithData.textContent = daily.length
+    ? `${daily.length} / ${Number.isFinite(days) ? days : 7} 天`
+    : "0 天";
+  elements.trendSource.textContent = trends?.generated_from_utc_days
+    ? "按 UTC 日切"
+    : "读取中";
+
+  const latest = daily[0]?.[1] ?? null;
+  elements.trendPercentiles.textContent = latest
+    ? `${formatLatency(latest.p50_latency_ms)} / ${formatLatency(latest.p95_latency_ms)}`
+    : "--";
+
+  if (!daily.length) {
+    elements.longTrendList.innerHTML =
+      '<div class="trend-empty">还没有按天聚合；后台采样跨过一个 UTC 日切后会出现</div>';
+    return;
+  }
+
+  elements.longTrendList.innerHTML = daily.map(([day, item]) => {
+    const availability = Number.isFinite(item.availability_percent)
+      ? item.availability_percent
+      : 0;
+    const tone = item.fail
+      ? "critical"
+      : item.warn
+        ? "degraded"
+        : "healthy";
+    return `
+      <article class="long-trend-row" data-tone="${escapeHtml(tone)}">
+        <div class="long-trend-head">
+          <strong>${escapeHtml(formatDate(day))}</strong>
+          <span>${escapeHtml(`${item.samples} 次采样 · 可用率 ${formatPercent(availability)}`)}</span>
+        </div>
+        <div class="long-trend-bar" aria-hidden="true">
+          <i style="width:${Math.max(2, Math.round(availability))}%"></i>
+        </div>
+        <div class="long-trend-meta">
+          <span>p50 ${escapeHtml(formatLatency(item.p50_latency_ms))}</span>
+          <span>p95 ${escapeHtml(formatLatency(item.p95_latency_ms))}</span>
+          <span>异常 ${escapeHtml(String(item.fail ?? 0))}</span>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+async function loadTrends() {
+  try {
+    renderLongTrend(await fetchJson("/api/trends?days=7"));
+  } catch (error) {
+    elements.trendSource.textContent = "不可用";
+    elements.longTrendList.innerHTML =
+      `<div class="trend-empty is-error">按天聚合读取失败：${escapeHtml(error.message)}</div>`;
+  }
+}
+
 function renderAutomation(data) {
   const automation = data.automation ?? {};
   const scheduler = automation.scheduler ?? {};
@@ -439,6 +521,7 @@ async function loadStatus({ force = false } = {}) {
     renderTrend(data.history);
     renderTransitions();
     renderAutomation(data);
+    await loadTrends();
     setConnection("ok", "实时");
     if (force) showToast("已刷新全部检测");
   } catch (error) {
@@ -451,6 +534,9 @@ async function loadStatus({ force = false } = {}) {
     elements.schedulerState.textContent = "不可用";
     elements.alertList.innerHTML =
       `<div class="alert-empty is-error">无法读取告警账本：${escapeHtml(error.message)}</div>`;
+    elements.trendSource.textContent = "不可用";
+    elements.longTrendList.innerHTML =
+      `<div class="trend-empty is-error">无法读取按天聚合：${escapeHtml(error.message)}</div>`;
   } finally {
     loading = false;
     elements.refreshButton.disabled = false;

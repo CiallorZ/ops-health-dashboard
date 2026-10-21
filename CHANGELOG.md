@@ -4,6 +4,23 @@ All notable changes are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.7.0] - 2026-10-21
+
+### Added
+
+- Long-term trend rollups now aggregate real UTC calendar days, expose a
+  bounded 1-30 day window, and compute p50/p95 latency from fixed latency
+  buckets. Missing days are never invented or backfilled.
+- `GET /api/trends?days=7` returns daily availability, sample counts, latency
+  percentiles, per-check rollups, and the bucket boundaries used for math.
+- The dashboard now has a 7-day long-term trend panel that names the UTC day
+  boundary, shows days with data, and keeps loading/error states truthful.
+
+### Security
+
+- Trend responses use the existing same-origin API, do not expose webhook URLs
+  or secrets, and are bounded by `MAX_TREND_DAYS` / `MAX_TREND_ITEMS`.
+
 ## [0.6.0] - 2026-10-21
 
 ### Added

@@ -2,16 +2,35 @@
 
 from __future__ import annotations
 
+import bisect
 import json
 import math
 import threading
 from collections import deque
+from datetime import date
 from pathlib import Path
 from typing import Any
 
 CHECK_STATUSES = frozenset({"ok", "warn", "fail"})
 MAX_HISTORY_CHECKS_PER_RUN = 200
 MAX_TRANSITION_EVENTS = 8
+MAX_TREND_DAYS = 30
+MAX_TREND_ITEMS = 2000
+
+LATENCY_BUCKETS: tuple[float, ...] = (
+    10.0,
+    25.0,
+    50.0,
+    100.0,
+    200.0,
+    300.0,
+    400.0,
+    600.0,
+    800.0,
+    1000.0,
+    1500.0,
+    2000.0,
+)
 
 
 def _latency(value: object) -> float | None:
@@ -21,6 +40,102 @@ def _latency(value: object) -> float | None:
     if not math.isfinite(latency) or latency < 0:
         return None
     return round(latency, 1)
+
+
+def _percentile(histogram: list[int], total: int, fraction: float) -> float | None:
+    """Read pNN from fixed latency buckets.
+
+    A histogram keeps the persisted trend payload bounded; the percentile is
+    interpolated inside the bucket that contains the requested rank, so the
+    result is approximated but always derived from real samples.
+    """
+    if total <= 0:
+        return None
+    bucket_count = len(LATENCY_BUCKETS) + 1
+    target_rank = min(total - 1, max(0, math.ceil(fraction * total) - 1))
+    seen = 0
+    index = 0
+    while index < bucket_count - 1:
+        seen += histogram[index]
+        if seen > target_rank:
+            break
+        index += 1
+    previous = seen - histogram[index]
+    bucket_start = 0.0 if index == 0 else float(LATENCY_BUCKETS[index - 1])
+    if index >= len(LATENCY_BUCKETS):
+        return round(bucket_start, 1)
+
+    bucket_end = float(LATENCY_BUCKETS[index])
+    offset = max(1, target_rank - previous + 1)
+    ratio = offset / histogram[index] if histogram[index] else 0.5
+    return round(bucket_start + (bucket_end - bucket_start) * min(1.0, ratio), 1)
+
+
+def _day_key(value: object) -> str | None:
+    """Return the UTC date of a run timestamp, or None when it is unreadable.
+
+    The prefix is parsed as a real calendar date so impossible values such as
+    ``2026-13-45`` never become trend days.
+    """
+    if not isinstance(value, str) or len(value) < 10:
+        return None
+    day = value[:10]
+    try:
+        return date.fromisoformat(day).isoformat()
+    except ValueError:
+        return None
+
+
+def _bucket_index(latency_ms: float) -> int:
+    return bisect.bisect_left(LATENCY_BUCKETS, latency_ms)
+
+
+def _daily_entry() -> dict[str, Any]:
+    return {
+        "samples": 0,
+        "ok": 0,
+        "warn": 0,
+        "fail": 0,
+        "histogram": [0] * (len(LATENCY_BUCKETS) + 1),
+        "latency_samples": 0,
+    }
+
+
+def _finalize_daily(entry: dict[str, Any]) -> dict[str, Any]:
+    samples = entry.pop("samples")
+    histogram = entry.pop("histogram")
+    latency_samples = entry.pop("latency_samples")
+    entry["samples"] = samples
+    entry["availability_percent"] = (
+        round((entry["ok"] + entry["warn"]) / samples * 100, 1) if samples else None
+    )
+    entry["p50_latency_ms"] = _percentile(histogram, latency_samples, 0.5)
+    entry["p95_latency_ms"] = _percentile(histogram, latency_samples, 0.95)
+    entry["latency_samples"] = latency_samples
+    return entry
+
+
+def _finalize_check(
+    check_id: str,
+    days: dict[str, dict[str, Any]],
+    *,
+    day_limit: int,
+) -> dict[str, Any] | None:
+    if not days:
+        return None
+    ordered = sorted(days, reverse=True)[:day_limit]
+    daily = {day: _finalize_daily(days[day]) for day in ordered}
+    return {
+        "check_id": check_id,
+        "days_with_data": len(daily),
+        "daily": daily,
+        "totals": {
+            "samples": sum(item["samples"] for item in daily.values()),
+            "ok": sum(item["ok"] for item in daily.values()),
+            "warn": sum(item["warn"] for item in daily.values()),
+            "fail": sum(item["fail"] for item in daily.values()),
+        },
+    }
 
 
 def summarize_check_history(
@@ -123,6 +238,88 @@ def summarize_check_history(
         "window": bounded,
         "checks": summaries,
         "events": list(reversed(events))[:MAX_TRANSITION_EVENTS],
+    }
+
+
+def summarize_history_trends(
+    history: list[dict[str, Any]],
+    checks: list[dict[str, Any]],
+    *,
+    days: int = 7,
+) -> dict[str, Any]:
+    """Build bounded daily availability and latency percentiles from real runs.
+
+    Only days that contain samples are returned. Missing days are never filled
+    with assumed values; ``days`` only bounds how many recent days are kept.
+    """
+    day_limit = max(1, min(int(days), MAX_TREND_DAYS))
+    current = {
+        check["id"]: check
+        for check in checks
+        if isinstance(check, dict) and isinstance(check.get("id"), str)
+    }
+
+    per_check: dict[str, dict[str, dict[str, Any]]] = {
+        check_id: {} for check_id in current
+    }
+    overall: dict[str, dict[str, Any]] = {}
+
+    for item in history[-MAX_TREND_ITEMS:]:
+        if not isinstance(item, dict):
+            continue
+        day = _day_key(item.get("generated_at"))
+        raw_checks = item.get("checks")
+        if day is None or not isinstance(raw_checks, list):
+            continue
+
+        seen_in_run: set[str] = set()
+        used_samples: list[tuple[dict[str, Any], str, float | None]] = []
+        for raw_check in raw_checks[:MAX_HISTORY_CHECKS_PER_RUN]:
+            if not isinstance(raw_check, dict):
+                continue
+            check_id = raw_check.get("id")
+            status = raw_check.get("status")
+            if (
+                not isinstance(check_id, str)
+                or check_id not in current
+                or check_id in seen_in_run
+                or status not in CHECK_STATUSES
+            ):
+                continue
+            seen_in_run.add(check_id)
+            latency = _latency(raw_check.get("latency_ms"))
+            used_samples.append((per_check[check_id], status, latency))
+
+        if not used_samples:
+            # A run without valid per-check samples must not create a trend day.
+            continue
+
+        overall.setdefault(day, _daily_entry())
+        for check_days, status, latency in used_samples:
+            check_entry = check_days.setdefault(day, _daily_entry())
+            overall_entry = overall[day]
+            for entry in (check_entry, overall_entry):
+                entry["samples"] += 1
+                entry[status] += 1
+                if latency is not None:
+                    entry["histogram"][_bucket_index(latency)] += 1
+                    entry["latency_samples"] += 1
+
+    check_summaries: dict[str, dict[str, Any]] = {}
+    for check_id, check_days in per_check.items():
+        summary = _finalize_check(check_id, check_days, day_limit=day_limit)
+        if summary is not None:
+            check_summaries[check_id] = summary
+
+    ordered_days = sorted(overall, reverse=True)[:day_limit]
+    daily_totals = {day: _finalize_daily(overall[day]) for day in ordered_days}
+    return {
+        "days": day_limit,
+        "days_with_data": len(daily_totals),
+        "generated_from_utc_days": True,
+        "daily": daily_totals,
+        "checks": check_summaries,
+        "latency_buckets_ms": list(LATENCY_BUCKETS),
     }
 
 

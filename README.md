@@ -11,9 +11,9 @@
 [GitHub Actions](https://github.com/CiallorZ/ops-health-dashboard/actions/workflows/ci.yml)
 · [Python 3.11+](https://www.python.org/)
 · [MIT License](LICENSE)
-· [v0.6.0](VERSION)
+· [v0.7.0](VERSION)
 
-[下载 v0.6.0](docs/downloads/sentinel-0.6.0.zip)
+[下载 v0.7.0](docs/downloads/sentinel-0.7.0.zip)
 · [介绍页](docs/index.html)
 · [安全边界](docs/SECURITY.md)
 · [测试说明](docs/TESTING.md)
@@ -34,6 +34,7 @@ Sentinel 面向“先自己看见，再等人投诉”的场景：本机或内�
 - 每项结果都带延迟、状态码、证书天数或错误原因；
 - 每项检查都有紧凑 heartbeat、近 40 轮可用率、标签与最近状态变化；
 - 浏览器关闭后，后台调度仍按配置周期持续采样；
+- 按真实 UTC 日聚合长期可用率，并给出 p50 / p95 延迟分位数；
 - 状态变化可投递到 Webhook，并保留冷却、重试和最终送达结果；
 - 离线报告会明确标注已测量、已跳过与未测量能力。
 
@@ -78,6 +79,7 @@ Sentinel 是独立的 Python 标准库实现，不复制 Uptime Kuma 的 Vue / S
 | 可用率与事件 | 页面展示每项近 40 轮可用率；仅当相邻真实采样状态变化时生成 Important Events |
 | Webhook 告警 | 故障、降级与恢复可触发 JSON Webhook；支持冷却去重、有界重试与可选 HMAC-SHA256 签名 |
 | 投递证据 | 最近告警显示排队、投递、重试、送达、失败或抑制结果，不暴露 Webhook URL 与签名秘密 |
+| 长期趋势 | `/api/trends?days=1..30` 按真实 UTC 日聚合可用率与 p50/p95；缺失日期不补造 |
 | 快速定位 | 可按名称、目标、分组或标签搜索，并按 `ok / warn / fail` 筛选 |
 | 离线报告 | `/api/report` 下载自包含 HTML，URL 凭据、查询参数与片段会被移除 |
 | 有界超时 | 每项独立超时，单项故障不会拖垮整个看板 |
@@ -89,7 +91,7 @@ Sentinel 是独立的 Python 标准库实现，不复制 Uptime Kuma 的 Vue / S
 
 | 方式 | 适合场景 | 入口 |
 |---|---|---|
-| Windows 便携包 | 下载后直接运行，不需要构建 | [下载 `sentinel-0.6.0.zip`](docs/downloads/sentinel-0.6.0.zip) · [SHA256](docs/downloads/sentinel-0.6.0.zip.sha256) |
+| Windows 便携包 | 下载后直接运行，不需要构建 | [下载 `sentinel-0.7.0.zip`](docs/downloads/sentinel-0.7.0.zip) · [SHA256](docs/downloads/sentinel-0.7.0.zip.sha256) |
 | Docker Compose | Linux 服务器或隔离环境 | 仓库根目录执行 `docker compose up --build -d` |
 | 源码运行 | 开发、审计与自定义 | `git clone` 后执行 `python server.py` |
 
@@ -215,6 +217,7 @@ python server.py --no-scheduler
 | `GET` | `/api/history?limit=40` | 读取有界历史；新条目包含精简的逐项检查记录 |
 | `GET` | `/api/config` | 只读配置，不含秘密 |
 | `GET` | `/api/alerts?limit=12` | 读取脱敏的 Webhook 投递账本 |
+| `GET` | `/api/trends?days=7` | 按真实 UTC 日读取有界可用率与 p50/p95；`days` 限制为 `1–30` |
 | `GET` | `/api/report` | 下载当前快照的离线 HTML 报告 |
 | `POST` | `/api/refresh` | 强制刷新并返回最新快照 |
 
@@ -271,6 +274,8 @@ python server.py --no-scheduler
 ```
 
 可用率定义是“样本中非 `fail` 的比例”，`warn` 仍算可达但仍会显式标黄；它不是 SLA、时间加权可用率或持续采样承诺。旧版本留下的、没有 `checks` 字段的 JSONL 行仍可读取，只是不参与逐项计算。
+
+`/api/trends` 的按天窗口是 UTC 日切，只返回有真实采样的日期；没有采样的日期不会出现，也不会被补造为空天。p50 / p95 由固定延迟桶插值得到，是对真实样本的分位数近似，不是精确排序统计。
 
 ## 架构
 
@@ -342,7 +347,7 @@ docker compose up --build -d
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-release.ps1
 ```
 
-脚本会生成 `dist/sentinel-0.6.0.zip` 与对应的 `.sha256`，包含源码、默认配置、启动脚本、演示替身和文档。`dist/` 已加入 `.gitignore`，不会污染源码提交；脚本同时把最终包和校验文件复制到 `docs/downloads/`，供 README 与介绍页直接下载。构建包时不会把 `docs/downloads/` 再次打包，避免自包含递归。
+脚本会生成 `dist/sentinel-0.7.0.zip` 与对应的 `.sha256`，包含源码、默认配置、启动脚本、演示替身和文档。`dist/` 已加入 `.gitignore`，不会污染源码提交；脚本同时把最终包和校验文件复制到 `docs/downloads/`，供 README 与介绍页直接下载。构建包时不会把 `docs/downloads/` 再次打包，避免自包含递归。
 
 ## Windows 常驻
 
@@ -381,7 +386,7 @@ python server.py --port 18080 --config examples\checks.demo.json --data-dir data
 - [x] `v0.4` 可交付性：介绍页、截图、演示替身、维护文档与版本一致性修复。
 - [x] `v0.5` 观测上下文：逐项 heartbeat、可用率、标签搜索、状态筛选与 Important Events。
 - [x] `v0.6` 自动化：后台定时采样、Webhook 告警、冷却重试、脱敏账本、可下载包与安装/Demo 介绍页。
-- [ ] `v0.7` 长期趋势：按天聚合、延迟分位数、证书到期日历与归档。
+- [x] `v0.7` 长期趋势：真实 UTC 日聚合、可用率、p50/p95 与看板 7 天面板；证书日历与历史归档仍待做。
 - [ ] `v0.8` 多用户：只读分享、反向代理鉴权示例。
 
 详见 [ROADMAP.md](ROADMAP.md)。

@@ -166,6 +166,25 @@
               </div>
             </section>
 
+            <section class="panel long-trend-panel" id="long-trend-panel" aria-labelledby="long-trend-title">
+              <div class="panel-heading compact">
+                <div>
+                  <p class="panel-kicker">LONG-TERM / 7D</p>
+                  <h2 id="long-trend-title">长期趋势</h2>
+                </div>
+                <span class="mini-legend trend-source" id="trend-source">读取中</span>
+              </div>
+              <dl class="trend-summary">
+                <div><dt>统计天数</dt><dd id="trend-days">--</dd></div>
+                <div><dt>有数据天数</dt><dd id="trend-days-with-data">--</dd></div>
+                <div><dt>p50 / p95</dt><dd id="trend-percentiles">--</dd></div>
+              </dl>
+              <div class="long-trend-list" id="long-trend-list" aria-live="polite">
+                <div class="trend-empty">正在读取按天聚合</div>
+              </div>
+              <p class="config-note">按 UTC 日期聚合，只统计真实采样；没有采样的日期不会出现，也不补造。</p>
+            </section>
+
             <section class="panel transitions-panel" aria-labelledby="transitions-title">
               <div class="panel-heading compact">
                 <div>
@@ -228,7 +247,7 @@
       </main>
 
       <footer>
-        <span>SENTINEL <b>v0.6.0</b></span>
+        <span>SENTINEL <b>v0.7.0</b></span>
         <span>Zero-dependency / Python standard library</span>
         <span id="footer-state">本地数据 · 不采集凭据</span>
       </footer>

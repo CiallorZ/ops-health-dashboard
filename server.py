@@ -18,7 +18,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 from monitor import __version__
 from monitor.alerts import create_alert_dispatcher
 from monitor.config import ConfigError, load_config
-from monitor.history import HistoryStore
+from monitor.history import MAX_TREND_DAYS, HistoryStore
 from monitor.report import build_report
 from monitor.runner import CheckRunnerService
 from monitor.scheduler import BackgroundMonitor
@@ -96,6 +96,14 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/config":
             self._send_json(HTTPStatus.OK, self.server.runner.config.public_dict())
             return
+        if parsed.path == "/api/trends":
+            query = parse_qs(parsed.query)
+            try:
+                days = int(query.get("days", ["7"])[0])
+            except ValueError:
+                days = 7
+            self._send_json(HTTPStatus.OK, self._trends(days))
+            return
         if parsed.path == "/api/alerts":
             query = parse_qs(parsed.query)
             try:
@@ -150,6 +158,12 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
                 "scheduler": self.server.scheduler.status(),
                 "alerts": self.server.runner.alert_status(limit=12),
             },
+        }
+
+    def _trends(self, days: int) -> dict[str, Any]:
+        return {
+            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            **self.server.runner.get_trends(days=days),
         }
 
     def _send_report(self) -> None:

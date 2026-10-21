@@ -13,7 +13,13 @@ from typing import Any, Callable
 from .alerts import AlertDispatcher
 from .checks import CheckResult, run_check
 from .config import CheckConfig, DashboardConfig, Thresholds
-from .history import HistoryStore, summarize_check_history
+from .history import (
+    HistoryStore,
+    MAX_TREND_ITEMS,
+    MAX_TREND_DAYS,
+    summarize_check_history,
+    summarize_history_trends,
+)
 
 CheckRunner = Callable[[CheckConfig, Thresholds], CheckResult]
 
@@ -48,12 +54,18 @@ class CheckRunnerService:
         self._cached_at = 0.0
         self._last_statuses: dict[str, str] = {}
 
-    def get_snapshot(self, *, force: bool = False, history_limit: int = 40) -> dict:
+    def get_snapshot(
+        self,
+        *,
+        force: bool = False,
+        history_limit: int = 40,
+        trend_days: int | None = None,
+    ) -> dict:
         request_started = time.monotonic()
         if not force and self._cached is not None:
             age = request_started - self._cached_at
             if age < self.cache_seconds:
-                return self._with_history(self._cached, history_limit)
+                return self._with_history(self._cached, history_limit, trend_days)
 
         with self._lock:
             if self._cached is not None:
@@ -61,9 +73,9 @@ class CheckRunnerService:
                 # A snapshot created while this request waited on the lock is
                 # already fresh enough to satisfy it, even a forced refresh.
                 if self._cached_at >= request_started:
-                    return self._with_history(self._cached, history_limit)
+                    return self._with_history(self._cached, history_limit, trend_days)
                 if not force and age < self.cache_seconds:
-                    return self._with_history(self._cached, history_limit)
+                    return self._with_history(self._cached, history_limit, trend_days)
 
             started = time.perf_counter()
             run_at = _iso(_utc_now())
@@ -101,7 +113,18 @@ class CheckRunnerService:
                     ],
                 }
             )
-            return self._with_history(snapshot, history_limit)
+            return self._with_history(snapshot, history_limit, trend_days)
+
+    def get_trends(self, *, days: int = 7) -> dict[str, Any]:
+        """Return bounded daily rollups without triggering another check run."""
+        bounded_days = max(1, min(int(days), MAX_TREND_DAYS))
+        snapshot = self._cached if self._cached is not None else self.get_snapshot()
+        history = self.history.recent(MAX_TREND_ITEMS)
+        return summarize_history_trends(
+            history,
+            snapshot.get("checks", []),
+            days=bounded_days,
+        )
 
     def _dispatch_transitions(
         self, results: list[CheckResult], summary: dict[str, Any]
@@ -181,9 +204,14 @@ class CheckRunnerService:
             "fail": counts["fail"],
         }
 
-    def _with_history(self, snapshot: dict, history_limit: int) -> dict:
+    def _with_history(
+        self,
+        snapshot: dict,
+        history_limit: int,
+        trend_days: int | None = None,
+    ) -> dict:
         history = self.history.recent(history_limit)
-        return {
+        payload = {
             **snapshot,
             "history": history,
             "check_history": summarize_check_history(
@@ -192,4 +220,11 @@ class CheckRunnerService:
                 limit=history_limit,
             ),
         }
+        if trend_days is not None:
+            payload["trends"] = summarize_history_trends(
+                self.history.recent(MAX_TREND_ITEMS),
+                snapshot.get("checks", []),
+                days=trend_days,
+            )
+        return payload
 

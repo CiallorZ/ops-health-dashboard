@@ -908,6 +908,109 @@ h2 {
   background: var(--amber);
 }
 
+.trend-summary {
+  display: grid;
+  margin: 0;
+}
+
+.trend-summary div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+
+.trend-summary dt {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.trend-summary dd {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 9px;
+  text-align: right;
+}
+
+.long-trend-list {
+  display: grid;
+  margin-top: 12px;
+}
+
+.long-trend-row {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  padding: 11px 0;
+  border-top: 1px solid var(--line);
+}
+
+.long-trend-row:first-child {
+  border-top: 0;
+}
+
+.long-trend-head {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+}
+
+.long-trend-head strong {
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.long-trend-head span {
+  overflow: hidden;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 8px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.long-trend-bar {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.long-trend-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--acid);
+}
+
+.long-trend-row[data-tone="degraded"] .long-trend-bar i {
+  background: var(--amber);
+}
+
+.long-trend-row[data-tone="critical"] .long-trend-bar i {
+  background: var(--red);
+}
+
+.long-trend-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 8px;
+}
+
+.trend-empty.is-error {
+  color: var(--red);
+}
+
 .transition-list {
   display: grid;
 }
@@ -1398,6 +1501,15 @@ footer b {
   .panel-heading {
     display: grid;
     gap: 14px;
+  }
+
+  .long-trend-head {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+
+  .long-trend-head span {
+    text-align: left;
   }
 
   .check-toolbar {

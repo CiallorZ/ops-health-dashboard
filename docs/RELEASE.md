@@ -14,7 +14,7 @@
 - `monitor/__init__.py`
 - `dashboard/index.html` 页脚
 - `CHANGELOG.md`
-- `docs/index.html` 的介绍页版本标识
+- `docs/index.html` 的介绍页版本标识与下载链接
 
 ## 提交前检查
 
