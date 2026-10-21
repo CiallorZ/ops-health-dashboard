@@ -4,6 +4,43 @@ All notable changes are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-10-21
+
+### Added
+
+- A background monitor now samples configured checks without requiring an open
+  browser. The interval is bounded from 10 to 3600 seconds and exposed through
+  `/api/status`, `/api/health`, and the dashboard automation panel.
+- Webhook alerts are sent only for real status transitions. Delivery includes
+  a bounded cooldown, queue limit, timeout, optional HMAC-SHA256 signature, and
+  zero to two retries.
+- Alert delivery evidence is persisted in a bounded local ledger and exposed
+  through `/api/alerts` and the dashboard. Webhook URLs, signing secrets, URL
+  query parameters, and raw exception text are not exposed.
+- The UI now shows scheduler state, last/next sample time, and recent webhook
+  outcomes alongside heartbeat and Important Events data.
+- A reproducible local demo now includes a webhook receiver and automatic
+  background sampling.
+- Versioned source packages can be built with `scripts/build-release.ps1` for
+  direct download and offline installation.
+
+### Changed
+
+- README and the self-contained landing page now cover background monitoring,
+  alert behavior, downloadable installation, Docker installation, and a
+  complete local demo path.
+- Configuration validation now bounds monitor names, targets, tags, webhook
+  URLs, environment-variable names, and notification policy values.
+- The dashboard sync interval is now 10 seconds while detection continues on
+  the configured background schedule.
+
+### Security
+
+- Webhook secrets can be referenced through environment variables and are
+  never returned by `/api/config`, `/api/alerts`, reports, or logs.
+- Outbound webhook payloads redact URL userinfo, query parameters, and
+  fragments from monitored targets.
+
 ## [0.5.0] - 2026-10-21
 
 ### Added

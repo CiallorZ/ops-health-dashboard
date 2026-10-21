@@ -11,7 +11,8 @@ class UiContractTests(unittest.TestCase):
         self.assertIn("/api/status", javascript)
         self.assertIn("/api/config", javascript)
         self.assertIn("check_history", javascript)
-        self.assertIn("REFRESH_MS = 30_000", javascript)
+        self.assertIn("REFRESH_MS = 10_000", javascript)
+        self.assertIn("renderAutomation", javascript)
 
     def test_ui_escapes_remote_text(self):
         javascript = (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
@@ -30,6 +31,8 @@ class UiContractTests(unittest.TestCase):
         self.assertIn("aria-live", html)
         self.assertIn('id="check-search"', html)
         self.assertIn('id="transition-list"', html)
+        self.assertIn('id="automation-panel"', html)
+        self.assertIn('id="alert-list"', html)
         self.assertIn("prefers-reduced-motion", (ROOT / "dashboard" / "styles.css").read_text(encoding="utf-8"))
 
     def test_current_version_is_consistent(self):
@@ -44,6 +47,24 @@ class UiContractTests(unittest.TestCase):
         self.assertIn(f"v{version}", landing)
         self.assertIn(f'__version__ = "{version}"', package)
         self.assertIn(f"## [{version}]", changelog)
+
+    def test_landing_page_covers_demo_install_and_local_download(self):
+        version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+        landing = (ROOT / "docs" / "index.html").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn('id="demo"', landing)
+        self.assertIn('id="install"', landing)
+        self.assertIn("/api/alerts", landing)
+        self.assertIn("start-sentinel.cmd", landing)
+        self.assertIn(f"downloads/sentinel-{version}.zip", landing)
+        self.assertIn(f"docs/downloads/sentinel-{version}.zip", readme)
+
+        downloads = ROOT / "docs" / "downloads"
+        artifact = downloads / f"sentinel-{version}.zip"
+        checksum = downloads / f"sentinel-{version}.zip.sha256"
+        if downloads.exists():
+            self.assertTrue(artifact.is_file(), artifact)
+            self.assertTrue(checksum.is_file(), checksum)
 
 
 if __name__ == "__main__":

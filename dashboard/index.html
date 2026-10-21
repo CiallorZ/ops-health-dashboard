@@ -46,7 +46,9 @@
             <div class="hero-meta">
               <span id="last-updated">等待首次采样</span>
               <span class="meta-divider" aria-hidden="true"></span>
-              <span>每 30 秒自动刷新</span>
+              <span>页面每 10 秒同步</span>
+              <span class="meta-divider" aria-hidden="true"></span>
+              <span id="monitor-interval">后台每 60 秒采样</span>
               <span class="meta-divider" aria-hidden="true"></span>
               <span id="run-duration">-- ms</span>
             </div>
@@ -177,6 +179,28 @@
               </div>
             </section>
 
+            <section class="panel automation-panel" id="automation-panel" aria-labelledby="automation-title">
+              <div class="panel-heading compact">
+                <div>
+                  <p class="panel-kicker">AUTOMATION</p>
+                  <h2 id="automation-title">持续监测与告警</h2>
+                </div>
+                <span class="automation-state" id="scheduler-state" data-state="loading">读取中</span>
+              </div>
+              <dl class="automation-list">
+                <div><dt>后台采样</dt><dd id="scheduler-interval">--</dd></div>
+                <div><dt>上次完成</dt><dd id="scheduler-last">--</dd></div>
+                <div><dt>下次采样</dt><dd id="scheduler-next">--</dd></div>
+              </dl>
+              <div class="alert-subheading">
+                <span>Webhook 投递</span>
+                <span id="alert-config-state">读取中</span>
+              </div>
+              <div class="alert-list" id="alert-list" aria-live="polite">
+                <div class="alert-empty">正在读取告警账本</div>
+              </div>
+            </section>
+
             <section class="panel config-panel" aria-labelledby="config-title">
               <div class="panel-heading compact">
                 <div>
@@ -197,14 +221,14 @@
               <span class="scan-line" aria-hidden="true"></span>
               <p class="panel-kicker">LOCAL ONLY</p>
               <h2 id="security-title">默认只监听回环地址</h2>
-              <p>没有内置账号体系，也没有把检测配置发送到外部。暴露到局域网前，请加反向代理与访问控制。</p>
+              <p>没有内置账号体系，默认不向外部发送数据；启用告警时只向显式配置的 Webhook 投递脱敏事件。暴露到局域网前，请加反向代理与访问控制。</p>
             </section>
           </aside>
         </div>
       </main>
 
       <footer>
-        <span>SENTINEL <b>v0.5.0</b></span>
+        <span>SENTINEL <b>v0.6.0</b></span>
         <span>Zero-dependency / Python standard library</span>
         <span id="footer-state">本地数据 · 不采集凭据</span>
       </footer>

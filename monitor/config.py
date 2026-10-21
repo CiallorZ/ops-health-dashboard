@@ -12,7 +12,13 @@ from urllib.parse import urlparse
 
 SUPPORTED_TYPES = {"http", "tcp", "tls", "ping"}
 MAX_CHECKS = 200
+MAX_NAME_LENGTH = 120
+MAX_TARGET_LENGTH = 2048
+MAX_TAGS = 12
+MAX_TAG_LENGTH = 40
+MAX_WEBHOOK_URL_LENGTH = 2048
 HOST_LABEL = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
+ENV_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 class ConfigError(ValueError):
@@ -35,6 +41,38 @@ class Thresholds:
             raise ConfigError("TLS thresholds must be positive")
         if self.tls_fail_days >= self.tls_warn_days:
             raise ConfigError("tls_fail_days must be lower than tls_warn_days")
+
+
+@dataclass(frozen=True)
+class NotificationConfig:
+    webhook_url: str | None = None
+    webhook_url_env: str | None = None
+    signing_secret_env: str | None = None
+    cooldown_seconds: float = 300
+    timeout_seconds: float = 4
+    retry_attempts: int = 1
+
+    @property
+    def configured(self) -> bool:
+        return bool(self.webhook_url or self.webhook_url_env)
+
+    def public_dict(self) -> dict[str, Any]:
+        """Expose delivery policy without revealing a webhook endpoint."""
+        return {
+            "configured": self.configured,
+            "webhook_source": (
+                "direct"
+                if self.webhook_url
+                else "environment"
+                if self.webhook_url_env
+                else None
+            ),
+            "webhook_url_env": self.webhook_url_env,
+            "signing_secret_env": self.signing_secret_env,
+            "cooldown_seconds": self.cooldown_seconds,
+            "timeout_seconds": self.timeout_seconds,
+            "retry_attempts": self.retry_attempts,
+        }
 
 
 @dataclass(frozen=True)
@@ -77,6 +115,8 @@ class DashboardConfig:
     version: int
     thresholds: Thresholds
     checks: tuple[CheckConfig, ...]
+    monitor_interval_seconds: float = 60
+    notifications: NotificationConfig = NotificationConfig()
 
     def public_dict(self) -> dict[str, Any]:
         return {
@@ -87,6 +127,8 @@ class DashboardConfig:
                 "tls_warn_days": self.thresholds.tls_warn_days,
                 "tls_fail_days": self.thresholds.tls_fail_days,
             },
+            "monitor_interval_seconds": self.monitor_interval_seconds,
+            "notifications": self.notifications.public_dict(),
             "checks": [check.public_dict() for check in self.checks],
         }
 
@@ -134,7 +176,14 @@ def _string_list(value: Any, *, name: str) -> tuple[str, ...]:
         return ()
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise ConfigError(f"{name} must be a list of strings")
-    return tuple(item.strip() for item in value if item.strip())
+    if len(value) > MAX_TAGS:
+        raise ConfigError(f"{name} must contain at most {MAX_TAGS} entries")
+    tags = tuple(item.strip() for item in value if item.strip())
+    if any(len(tag) > MAX_TAG_LENGTH for tag in tags):
+        raise ConfigError(
+            f"{name} entries must be at most {MAX_TAG_LENGTH} characters"
+        )
+    return tags
 
 
 def _group(value: Any, *, name: str) -> str:
@@ -178,6 +227,79 @@ def _is_host(value: str) -> bool:
     return all(HOST_LABEL.fullmatch(label) for label in value.split("."))
 
 
+def _environment_name(value: Any, *, name: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or not ENV_NAME.fullmatch(value):
+        raise ConfigError(f"{name} must be a valid environment variable name")
+    return value
+
+
+def _webhook_url(value: Any) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise ConfigError("notifications.webhook_url must be a non-empty string")
+    url = value.strip()
+    if len(url) > MAX_WEBHOOK_URL_LENGTH:
+        raise ConfigError(
+            "notifications.webhook_url must be at most "
+            f"{MAX_WEBHOOK_URL_LENGTH} characters"
+        )
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ConfigError(
+            "notifications.webhook_url must be an absolute HTTP(S) URL"
+        )
+    if parsed.username or parsed.password:
+        raise ConfigError("notifications.webhook_url must not contain credentials")
+    return url
+
+
+def _parse_notifications(raw: Any) -> NotificationConfig:
+    if raw is None:
+        return NotificationConfig()
+    if not isinstance(raw, dict):
+        raise ConfigError("notifications must be an object")
+
+    webhook_url = _webhook_url(raw.get("webhook_url"))
+    webhook_url_env = _environment_name(
+        raw.get("webhook_url_env"), name="notifications.webhook_url_env"
+    )
+    if webhook_url and webhook_url_env:
+        raise ConfigError(
+            "notifications may use webhook_url or webhook_url_env, not both"
+        )
+    signing_secret_env = _environment_name(
+        raw.get("signing_secret_env"), name="notifications.signing_secret_env"
+    )
+    cooldown_seconds = _number(
+        raw.get("cooldown_seconds"),
+        name="notifications.cooldown_seconds",
+        default=300,
+        minimum=0,
+        maximum=86_400,
+    )
+    timeout_seconds = _number(
+        raw.get("timeout_seconds"),
+        name="notifications.timeout_seconds",
+        default=4,
+        minimum=0.2,
+        maximum=30,
+    )
+    retry_attempts = _retry_attempts(
+        raw.get("retry_attempts"), name="notifications.retry_attempts"
+    )
+    return NotificationConfig(
+        webhook_url=webhook_url,
+        webhook_url_env=webhook_url_env,
+        signing_secret_env=signing_secret_env,
+        cooldown_seconds=cooldown_seconds,
+        timeout_seconds=timeout_seconds,
+        retry_attempts=retry_attempts,
+    )
+
+
 def _parse_check(raw: Any, index: int) -> CheckConfig:
     label = f"checks[{index}]"
     if not isinstance(raw, dict):
@@ -193,6 +315,11 @@ def _parse_check(raw: Any, index: int) -> CheckConfig:
     name = raw.get("name")
     if not isinstance(name, str) or not name.strip():
         raise ConfigError(f"{label}.name must be a non-empty string")
+    name = name.strip()
+    if len(name) > MAX_NAME_LENGTH:
+        raise ConfigError(
+            f"{label}.name must be at most {MAX_NAME_LENGTH} characters"
+        )
 
     check_type = raw.get("type")
     if check_type not in SUPPORTED_TYPES:
@@ -203,6 +330,10 @@ def _parse_check(raw: Any, index: int) -> CheckConfig:
     if not isinstance(target, str) or not target.strip():
         raise ConfigError(f"{label}.target must be a non-empty string")
     target = target.strip()
+    if len(target) > MAX_TARGET_LENGTH:
+        raise ConfigError(
+            f"{label}.target must be at most {MAX_TARGET_LENGTH} characters"
+        )
 
     enabled = raw.get("enabled", True)
     if not isinstance(enabled, bool):
@@ -239,7 +370,7 @@ def _parse_check(raw: Any, index: int) -> CheckConfig:
 
     return CheckConfig(
         id=check_id,
-        name=name.strip(),
+        name=name,
         type=check_type,
         target=target,
         enabled=enabled,
@@ -298,6 +429,14 @@ def parse_config(raw: Any) -> DashboardConfig:
             maximum=3650,
         ),
     )
+    monitor_interval_seconds = _number(
+        raw.get("monitor_interval_seconds"),
+        name="monitor_interval_seconds",
+        default=60,
+        minimum=10,
+        maximum=3600,
+    )
+    notifications = _parse_notifications(raw.get("notifications"))
 
     checks_raw = raw.get("checks")
     if not isinstance(checks_raw, list) or not checks_raw:
@@ -309,7 +448,13 @@ def parse_config(raw: Any) -> DashboardConfig:
     if len(ids) != len(set(ids)):
         raise ConfigError("check ids must be unique")
 
-    return DashboardConfig(version=version, thresholds=thresholds, checks=checks)
+    return DashboardConfig(
+        version=version,
+        thresholds=thresholds,
+        checks=checks,
+        monitor_interval_seconds=monitor_interval_seconds,
+        notifications=notifications,
+    )
 
 
 def load_config(path: str | Path) -> DashboardConfig:

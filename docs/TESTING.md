@@ -15,6 +15,7 @@ python -m unittest discover -s tests -v
 python -W error::ResourceWarning -m unittest discover -s tests -q
 python -m compileall -q monitor toolbox server.py tests
 node --check dashboard\app.js
+node --check scripts\capture-screenshots.mjs
 git diff --check
 ```
 
@@ -27,6 +28,8 @@ git diff --check
 | `tests/test_checks.py` | HTTP 状态码、跳转、TLS 边界、User-Agent 版本 |
 | `tests/test_config.py` | 默认值、分组、重试边界、凭据拒绝、重复 ID |
 | `tests/test_history.py` | 逐项可用率、延迟聚合、旧历史兼容、事件数量上限 |
+| `tests/test_alerts.py` | Webhook 本地替身、HMAC 签名、冷却抑制、重试上限、秘密脱敏 |
+| `tests/test_scheduler.py` | 后台循环采样、异常记录、停止与状态快照 |
 | `tests/test_runner.py` | 缓存、强制刷新、并发去重、受限重试与恢复证据 |
 | `tests/test_server.py` | 健康接口、版本头、404、静态页、报告脱敏 |
 | `tests/test_report.py` | `0` 值渲染、重试证据、旧快照缺省值 |
@@ -48,6 +51,8 @@ API / UI 改动需要在非 `8080` 的临时端口启动真实服务：
 8. 状态变化事件只在相邻真实状态不同的时候出现；
 9. 桌面与 390 px 移动端无横向溢出，空状态与错误状态可读；
 10. 结束后停止全部临时进程。
+11. 配置本地 Webhook 替身，确认 `ok → fail` 与恢复事件都能投递，账本和 `/api/alerts` 不暴露 URL 或签名秘密。
+12. 确认后台调度在页面关闭后仍持续采样，`/api/health` 与 `/api/status` 的 `automation.scheduler` 状态一致。
 
 ## 截图复现
 

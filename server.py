@@ -16,10 +16,12 @@ from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
 from monitor import __version__
+from monitor.alerts import create_alert_dispatcher
 from monitor.config import ConfigError, load_config
 from monitor.history import HistoryStore
 from monitor.report import build_report
 from monitor.runner import CheckRunnerService
+from monitor.scheduler import BackgroundMonitor
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 DEFAULT_DASHBOARD = PROJECT_ROOT / "dashboard"
@@ -36,10 +38,21 @@ class DashboardServer(ThreadingHTTPServer):
         address: tuple[str, int],
         runner: CheckRunnerService,
         dashboard_dir: Path,
+        scheduler: BackgroundMonitor,
     ) -> None:
         super().__init__(address, DashboardRequestHandler)
         self.runner = runner
         self.dashboard_dir = dashboard_dir.resolve()
+        self.scheduler = scheduler
+
+    def start_background_monitor(self) -> None:
+        self.scheduler.start()
+
+    def server_close(self) -> None:
+        self.scheduler.stop()
+        if self.runner.alert_dispatcher is not None:
+            self.runner.alert_dispatcher.close()
+        super().server_close()
 
 
 class DashboardRequestHandler(BaseHTTPRequestHandler):
@@ -57,6 +70,7 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
                     "service": "ops-health-dashboard",
                     "version": __version__,
                     "uptime_seconds": round(time.monotonic() - STARTED_AT, 1),
+                    "scheduler": self.server.scheduler.status(),
                 },
             )
             return
@@ -81,6 +95,20 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/config":
             self._send_json(HTTPStatus.OK, self.server.runner.config.public_dict())
+            return
+        if parsed.path == "/api/alerts":
+            query = parse_qs(parsed.query)
+            try:
+                limit = int(query.get("limit", ["12"])[0])
+            except ValueError:
+                limit = 12
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    **self.server.runner.alert_status(limit=max(1, min(limit, 40))),
+                },
+            )
             return
         if parsed.path == "/api/report":
             self._send_report()
@@ -113,7 +141,16 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
                 f"snapshot failed: {type(exc).__name__}",
             )
             return
-        self._send_json(HTTPStatus.OK, snapshot)
+        self._send_json(HTTPStatus.OK, self._with_runtime(snapshot))
+
+    def _with_runtime(self, snapshot: dict[str, Any]) -> dict[str, Any]:
+        return {
+            **snapshot,
+            "automation": {
+                "scheduler": self.server.scheduler.status(),
+                "alerts": self.server.runner.alert_status(limit=12),
+            },
+        }
 
     def _send_report(self) -> None:
         try:
@@ -209,8 +246,15 @@ def build_server(
 ) -> DashboardServer:
     config = load_config(config_path)
     history = HistoryStore(data_dir)
-    runner = CheckRunnerService(config, history, cache_seconds=cache_seconds)
-    return DashboardServer((host, port), runner, Path(dashboard_dir))
+    alert_dispatcher = create_alert_dispatcher(config.notifications, data_dir)
+    runner = CheckRunnerService(
+        config,
+        history,
+        cache_seconds=cache_seconds,
+        alert_dispatcher=alert_dispatcher,
+    )
+    scheduler = BackgroundMonitor(runner, config.monitor_interval_seconds)
+    return DashboardServer((host, port), runner, Path(dashboard_dir), scheduler)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -221,6 +265,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--port", type=int, default=8080)
     parser.add_argument("--config", default=str(PROJECT_ROOT / "checks.json"))
     parser.add_argument("--data-dir", default=str(PROJECT_ROOT / "data"))
+    parser.add_argument(
+        "--no-scheduler",
+        action="store_true",
+        help="Disable automatic background sampling for this process.",
+    )
     parser.add_argument(
         "--version",
         action="version",
@@ -256,6 +305,14 @@ def main(argv: list[str] | None = None) -> int:
         f"ops-health-dashboard {__version__} listening on "
         f"http://{args.host}:{server.server_address[1]}"
     )
+    if args.no_scheduler:
+        print("background scheduler: disabled")
+    else:
+        server.start_background_monitor()
+        print(
+            "background scheduler: "
+            f"every {server.runner.config.monitor_interval_seconds:g}s"
+        )
     print(f"config: {Path(args.config).resolve()}")
     print("press Ctrl+C to stop")
     try:

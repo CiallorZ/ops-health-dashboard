@@ -485,14 +485,14 @@
 
       .feature-grid {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 14px;
         margin-top: 40px;
       }
 
       .feature {
         position: relative;
-        min-height: 208px;
+        min-height: 220px;
         padding: 24px 22px;
         overflow: hidden;
         border: 1px solid var(--line);
@@ -572,6 +572,163 @@
         color: var(--faint);
         font-family: var(--mono);
         font-size: 9px;
+      }
+
+      /* ---------- local demo ---------- */
+      .demo-board {
+        display: grid;
+        grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+        gap: 16px;
+        margin-top: 40px;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        background:
+          radial-gradient(circle at 8% 0, rgba(181, 243, 107, 0.08), transparent 26rem),
+          rgba(12, 18, 22, 0.78);
+      }
+
+      .demo-copy {
+        padding: 24px 20px;
+      }
+
+      .demo-label {
+        color: var(--acid);
+        font-family: var(--mono);
+        font-size: 9px;
+        letter-spacing: 0.12em;
+      }
+
+      .demo-copy h3 {
+        max-width: 420px;
+        margin: 25px 0 12px;
+        font-size: clamp(24px, 3vw, 36px);
+        font-weight: 600;
+        letter-spacing: -0.05em;
+        line-height: 1.08;
+      }
+
+      .demo-steps {
+        display: grid;
+        gap: 0;
+        margin: 26px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .demo-steps li {
+        display: grid;
+        gap: 5px;
+        padding: 13px 0;
+        border-top: 1px solid var(--line);
+      }
+
+      .demo-steps b {
+        color: var(--text);
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .demo-steps span {
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.65;
+      }
+
+      .demo-console {
+        overflow: hidden;
+        border: 1px solid var(--line-strong);
+        border-radius: 14px;
+        background:
+          linear-gradient(180deg, rgba(181, 243, 107, 0.025), transparent 35%),
+          #070b0e;
+        box-shadow: 0 28px 60px rgba(0, 0, 0, 0.32);
+      }
+
+      .demo-console-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 15px;
+        border-bottom: 1px solid var(--line);
+        color: var(--faint);
+        font-family: var(--mono);
+        font-size: 9px;
+        letter-spacing: 0.06em;
+      }
+
+      .demo-console-bar i {
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        margin-right: 6px;
+        border-radius: 50%;
+        background: var(--acid);
+        box-shadow: 0 0 0 4px var(--acid-soft);
+      }
+
+      .demo-event {
+        display: grid;
+        grid-template-columns: 52px 112px minmax(0, 1fr);
+        gap: 10px;
+        align-items: baseline;
+        margin: 0 15px;
+        padding: 13px 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .demo-event time,
+      .demo-event strong {
+        font-family: var(--mono);
+      }
+
+      .demo-event time {
+        color: var(--faint);
+        font-size: 9px;
+      }
+
+      .demo-event strong {
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 500;
+      }
+
+      .demo-event span {
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.6;
+      }
+
+      .demo-event[data-tone="ok"] strong { color: var(--acid); }
+      .demo-event[data-tone="warn"] strong { color: var(--amber); }
+      .demo-event[data-tone="fail"] strong { color: var(--red); }
+
+      .demo-command {
+        display: grid;
+        gap: 8px;
+        padding: 15px;
+      }
+
+      .demo-command span {
+        color: var(--faint);
+        font-family: var(--mono);
+        font-size: 9px;
+        letter-spacing: 0.08em;
+      }
+
+      .demo-command code {
+        display: block;
+        overflow-x: auto;
+        padding: 8px 10px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        color: #cfe3d4;
+        background: rgba(255, 255, 255, 0.02);
+        font-family: var(--mono);
+        font-size: 9px;
+        white-space: nowrap;
       }
 
       /* ---------- evidence ---------- */
@@ -681,6 +838,72 @@
       .steps b {
         color: var(--text);
         font-weight: 600;
+      }
+
+      #install {
+        grid-template-columns: 1fr;
+      }
+
+      .install-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 26px;
+      }
+
+      .install-card {
+        min-height: 190px;
+        padding: 20px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(16, 23, 27, 0.76);
+      }
+
+      .install-card[data-tone="acid"] {
+        border-top-color: rgba(181, 243, 107, 0.5);
+      }
+
+      .install-card[data-tone="amber"] {
+        border-top-color: rgba(244, 189, 98, 0.5);
+      }
+
+      .install-card > span {
+        color: var(--faint);
+        font-family: var(--mono);
+        font-size: 9px;
+        letter-spacing: 0.1em;
+      }
+
+      .install-card h3 {
+        margin: 28px 0 9px;
+        font-size: 17px;
+        font-weight: 600;
+        letter-spacing: -0.03em;
+      }
+
+      .install-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.7;
+      }
+
+      .install-card code,
+      .install-card a {
+        display: inline-block;
+        margin-top: 16px;
+        color: var(--acid);
+        font-family: var(--mono);
+        font-size: 10px;
+        text-decoration: none;
+      }
+
+      .compact-steps {
+        max-width: 940px;
+      }
+
+      #install .terminal {
+        width: min(940px, 100%);
       }
 
       .terminal {
@@ -857,8 +1080,13 @@
 
         .gallery,
         .evidence,
-        .start {
+        .start,
+        .demo-board {
           grid-template-columns: 1fr;
+        }
+
+        .install-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
         .gallery-side {
@@ -899,8 +1127,17 @@
         }
 
         .feature-grid,
-        .arch {
+        .arch,
+        .install-grid {
           grid-template-columns: 1fr;
+        }
+
+        .demo-event {
+          grid-template-columns: 44px minmax(0, 1fr);
+        }
+
+        .demo-event span {
+          grid-column: 2;
         }
 
         .arch-step::after {
@@ -955,8 +1192,8 @@
         </a>
         <nav class="nav-links" aria-label="主导航">
           <a href="#features">能力</a>
-          <a href="#preview">界面</a>
-          <a href="#start">快速开始</a>
+          <a href="#demo">Demo</a>
+          <a href="#install">安装</a>
           <a class="gh" href="https://github.com/CiallorZ/ops-health-dashboard">GitHub ↗</a>
         </nav>
       </div>
@@ -966,20 +1203,20 @@
       <div class="wrap">
         <section class="hero" aria-labelledby="title">
           <div class="hero-copy">
-            <p class="kicker"><span class="dot" aria-hidden="true"></span> LOCAL-FIRST OBSERVABILITY · v0.5.0</p>
+            <p class="kicker"><span class="dot" aria-hidden="true"></span> LOCAL-FIRST OBSERVABILITY · v0.6.0</p>
             <h1 id="title">把异常<br><em>提前看见</em><span class="period">。</span></h1>
             <p class="lead">
-              ICMP、TCP、TLS 与 HTTP 检测汇入同一条实时时间线。
-              每项资产拥有最近 40 轮 heartbeat、可用率与真实状态变化，没有演示模式，也没有伪造成功率。
+              ICMP、TCP、TLS 与 HTTP 在后台持续采样，汇入同一条实时时间线。
+              每项资产拥有 heartbeat、可用率、真实状态变化与 Webhook 投递证据，没有伪造成功率。
             </p>
             <div class="cta">
-              <a class="btn primary" href="#start">5 分钟启动 →</a>
-              <a class="btn ghost" href="https://github.com/CiallorZ/ops-health-dashboard">查看源码</a>
+              <a class="btn primary" href="downloads/sentinel-0.6.0.zip">下载 v0.6.0 →</a>
+              <a class="btn ghost" href="#demo">运行本地 Demo</a>
             </div>
             <dl class="facts">
-              <div><dt>0</dt><dd>运行时依赖</dd></div>
+              <div><dt>10s+</dt><dd>后台采样周期</dd></div>
               <div><dt>4</dt><dd>检测类型</dd></div>
-              <div><dt>127.0.0.1</dt><dd>默认监听</dd></div>
+              <div><dt>0</dt><dd>运行时依赖</dd></div>
             </dl>
           </div>
 
@@ -987,18 +1224,18 @@
             <div class="shot-frame">
               <span class="shot-scan" aria-hidden="true"></span>
               <img
-                src="assets/dashboard-desktop.png"
+                src="assets/dashboard-hero.png"
                 alt="Sentinel 看板桌面截图：总体状态、逐项 heartbeat、可用率、搜索筛选与状态变化"
-                width="1425"
-                height="1994"
+                width="1440"
+                height="1000"
               >
             </div>
             <div class="shot-mobile">
               <img
-                src="assets/dashboard-mobile.png"
+                src="assets/dashboard-mobile-hero.png"
                 alt="Sentinel 看板移动端截图"
-                width="375"
-                height="3374"
+                width="390"
+                height="844"
               >
             </div>
           </div>
@@ -1015,6 +1252,8 @@
             <span>HEARTBEAT / 每项最近 40 轮</span>
             <span>SEARCH / 名称 · 目标 · 分组 · 标签</span>
             <span><b>EVENT</b> 旧版任务端口 · OK → FAIL</span>
+            <span><b>AUTO</b> 后台每 60 秒 · 浏览器关闭仍运行</span>
+            <span><b>WEBHOOK</b> 状态迁移 · 冷却 · 重试 · 签名</span>
             <span><b>● OK</b> 控制面 API · 12 ms</span>
             <span><b>● OK</b> 本机回环 ICMP</span>
             <span><i>● WARN</i> 商品目录 API · 1.2 s</span>
@@ -1024,14 +1263,16 @@
             <span>HEARTBEAT / 每项最近 40 轮</span>
             <span>SEARCH / 名称 · 目标 · 分组 · 标签</span>
             <span><b>EVENT</b> 旧版任务端口 · OK → FAIL</span>
+            <span><b>AUTO</b> 后台每 60 秒 · 浏览器关闭仍运行</span>
+            <span><b>WEBHOOK</b> 状态迁移 · 冷却 · 重试 · 签名</span>
           </div>
         </div>
 
         <section class="section" id="features" aria-labelledby="features-title">
           <div class="section-head">
             <p class="kicker">01 / CAPABILITIES</p>
-            <h2 id="features-title">六件事，都围绕“可信”</h2>
-            <p>借鉴 Uptime Kuma 的监控列表与 heartbeat 信息架构，只做本地运维真正需要的几个闭环。</p>
+            <h2 id="features-title">八件事，形成完整监测闭环</h2>
+            <p>借鉴 Uptime Kuma 的后台监测、heartbeat、状态迁移与通知逻辑，同时保留 Sentinel 的零依赖、本地优先和证据边界。</p>
           </div>
 
           <div class="feature-grid">
@@ -1063,7 +1304,17 @@
             <article class="feature" data-tone="red">
               <span class="index">06</span>
               <h3>本地优先</h3>
-              <p>默认只监听 127.0.0.1，CSP、nosniff、禁止 iframe；不采集凭据，不向外部回传配置。</p>
+              <p>默认只监听 127.0.0.1，CSP、nosniff、禁止 iframe；不采集凭据。</p>
+            </article>
+            <article class="feature" data-tone="acid">
+              <span class="index">07</span>
+              <h3>后台持续监测</h3>
+              <p>页面关闭也不会停。后台按 10–3600 秒周期采样，服务端保留最新快照与逐项 heartbeat。</p>
+            </article>
+            <article class="feature" data-tone="amber">
+              <span class="index">08</span>
+              <h3>Webhook 告警闭环</h3>
+              <p>故障、降级与恢复触发 JSON Webhook；按迁移去重、冷却、有限重试，可选 HMAC-SHA256 签名。</p>
             </article>
           </div>
         </section>
@@ -1080,21 +1331,21 @@
               <img
                 src="assets/dashboard-desktop.png"
                 alt="桌面端看板完整界面"
-                width="1425"
-                height="1994"
+                width="1440"
+                height="2213"
                 loading="lazy"
               >
               <figcaption class="gallery-caption">
                 <span>DESKTOP / 1440 PX</span>
-                <span>真实取样 · 9 轮 heartbeat · 本地替身环境</span>
+                <span>真实取样 · 40 轮 heartbeat · 本地替身环境</span>
               </figcaption>
             </figure>
             <figure class="gallery-side">
               <img
                 src="assets/dashboard-mobile.png"
                 alt="移动端看板界面"
-                width="375"
-                height="3374"
+                width="390"
+                height="4294"
                 loading="lazy"
               >
               <figcaption class="gallery-caption">
@@ -1105,9 +1356,56 @@
           </div>
         </section>
 
-        <section class="evidence" aria-labelledby="evidence-title">
+        <section class="section" id="demo" aria-labelledby="demo-title">
+          <div class="section-head">
+            <p class="kicker">03 / LOCAL DEMO</p>
+            <h2 id="demo-title">一次本地演练，看见告警闭环</h2>
+            <p>Demo 不访问公网：本地 HTTP 替身提供成功、延迟、重试恢复、故障端口与 Webhook 接收器，所有状态都由真实检测产生。</p>
+          </div>
+
+          <div class="demo-board">
+            <div class="demo-copy">
+              <span class="demo-label">REPRODUCIBLE / 127.0.0.1</span>
+              <h3>从 OK 到 FAIL，再到可审计的 Webhook。</h3>
+              <ol class="demo-steps">
+                <li><b>启动替身</b><span>成功、慢响应、抖动恢复、三次握手后关闭的旧端口与本地 Webhook。</span></li>
+                <li><b>启动 Sentinel</b><span>后台调度自动积累 heartbeat，不需反复刷新页面。</span></li>
+                <li><b>观察状态迁移</b><span>旧端口从正常变为失败，告警账本出现真实投递结果。</span></li>
+                <li><b>验证证据边界</b><span>页面、API、报告和告警都不回显 Webhook URL 或签名秘密。</span></li>
+              </ol>
+            </div>
+            <div class="demo-console" aria-label="本地 Demo 事件时间线">
+              <div class="demo-console-bar">
+                <span><i></i> SENTINEL / LOCAL DEMO</span>
+                <span>18080 → 18081</span>
+              </div>
+              <div class="demo-event" data-tone="ok">
+                <time>00:00</time><strong>5 / 6 OK</strong><span>商品目录 API 延迟预警</span>
+              </div>
+              <div class="demo-event" data-tone="warn">
+                <time>00:10</time><strong>RETRY</strong><span>对账 API 第 2 次尝试恢复，保留恢复证据</span>
+              </div>
+              <div class="demo-event" data-tone="fail">
+                <time>00:20</time><strong>OK → FAIL</strong><span>旧版任务端口拒绝连接</span>
+              </div>
+              <div class="demo-event" data-tone="ok">
+                <time>00:20</time><strong>WEBHOOK 204</strong><span>down 事件已送达，1 次尝试</span>
+              </div>
+              <div class="demo-event" data-tone="ok">
+                <time>00:30</time><strong>NEXT SAMPLE</strong><span>浏览器关闭，后台仍按 10 秒周期采样</span>
+              </div>
+              <div class="demo-command">
+                <span>快速复现</span>
+                <code>python examples\demo_targets.py --port 18081</code>
+                <code>python server.py --port 18080 --config examples\checks.demo.json --data-dir data\demo</code>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="evidence" id="evidence" aria-labelledby="evidence-title">
           <div>
-            <p class="kicker">03 / EVIDENCE BOUNDARY</p>
+            <p class="kicker">04 / EVIDENCE BOUNDARY</p>
             <h2 id="evidence-title">状态要能解释，</h2>
             <p style="color: var(--text); font-size: clamp(22px, 3vw, 32px); font-weight: 600; letter-spacing: -0.04em; line-height: 1.1; margin-bottom: 14px;">
               而不是看起来好看。
@@ -1134,36 +1432,67 @@
           </div>
         </section>
 
-        <section class="start" id="start" aria-labelledby="start-title">
+        <section class="start" id="install" aria-labelledby="start-title">
           <div>
-            <p class="kicker">04 / QUICK START</p>
-            <h2 id="start-title" style="font-size: clamp(28px, 3.8vw, 44px);">三步，把事实放到眼前</h2>
-            <ol class="steps">
-              <li><b>确认 Python 3.11+</b><br>不需要 pip 安装任何运行时依赖。</li>
-              <li><b>编辑 checks.json</b><br>写入你的主机、端口、证书域名与 HTTP 健康地址。</li>
-              <li><b>启动并打开浏览器</b><br>默认地址 http://127.0.0.1:8080，每 30 秒自动刷新。</li>
+            <p class="kicker">05 / INSTALL</p>
+            <h2 id="start-title" style="font-size: clamp(28px, 3.8vw, 44px);">三种安装方式，同一套事实</h2>
+            <p style="color: var(--muted); font-size: 13px; line-height: 1.8; margin: 0;">
+              第一次使用推荐直接下载便携包；服务器环境使用 Docker；需要审计或二次开发时从源码运行。
+              所有方式都不需要数据库，不依赖第三方 Python 包。
+            </p>
+            <div class="install-grid">
+              <article class="install-card" data-tone="acid">
+                <span>01 / WINDOWS</span>
+                <h3>便携源码包</h3>
+                <p>下载 ZIP，解压，确认 Python 3.11+，双击 <code>start-sentinel.cmd</code>。</p>
+                <a href="downloads/sentinel-0.6.0.zip">下载 v0.6.0 ↗</a>
+                <a href="downloads/sentinel-0.6.0.zip.sha256">校验文件</a>
+              </article>
+              <article class="install-card" data-tone="amber">
+                <span>02 / DOCKER</span>
+                <h3>Compose 容器</h3>
+                <p>只映射到 <code>127.0.0.1:8080</code>，历史与告警账本写入 Docker volume。</p>
+                <code>docker compose up --build -d</code>
+              </article>
+              <article class="install-card" data-tone="neutral">
+                <span>03 / SOURCE</span>
+                <h3>零依赖运行</h3>
+                <p>适合审计、开发与自定义配置。复制仓库后直接启动 Python 标准库服务。</p>
+                <code>python server.py</code>
+              </article>
+            </div>
+            <ol class="steps compact-steps">
+              <li><b>编辑 checks.json</b><br>声明 HTTP、TCP、TLS、ICMP 目标、分组与阈值。</li>
+              <li><b>配置后台周期与告警</b><br>设置 <code>monitor_interval_seconds</code>；生产环境优先用 <code>*_env</code> 注入 Webhook 秘密。</li>
+              <li><b>打开并持续观测</b><br>页面每 10 秒同步最新快照，后台持续采样，异常迁移写入告警账本。</li>
             </ol>
           </div>
 
-          <div class="terminal" aria-label="快速开始命令">
-            <div class="terminal-bar">POWERSHELL / SENTINEL</div>
-            <pre><span class="c"># 1. 启动本地看板</span>
+          <div class="terminal" aria-label="安装与启动命令">
+            <div class="terminal-bar">POWERSHELL / SENTINEL v0.6.0</div>
+            <pre><span class="c"># 1. 下载并解压便携包后</span>
+<span class="g">cd</span> sentinel-0.6.0
+<span class="g">.\start-sentinel.cmd</span>
+
+<span class="c"># 2. 或直接从源码启动</span>
 <span class="g">python</span> server.py
 
-<span class="c"># 2. 打开浏览器</span>
+<span class="c"># 3. 打开看板与下载本轮报告</span>
 <span class="y">http://127.0.0.1:8080</span>
-
-<span class="c"># 3. 下载本轮离线诊断报告</span>
 <span class="y">http://127.0.0.1:8080/api/report</span>
 
-<span class="c"># 可选：查看当前版本</span>
-<span class="g">python</span> server.py --version</pre>
+<span class="c"># 4. 验证后台调度与告警账本</span>
+<span class="g">curl</span> http://127.0.0.1:8080/api/health
+<span class="g">curl</span> http://127.0.0.1:8080/api/alerts
+
+<span class="c"># 5. 仅调试页面，不启动后台采样</span>
+<span class="g">python</span> server.py --no-scheduler --version</pre>
           </div>
         </section>
 
         <section class="section architecture" aria-labelledby="arch-title">
           <div class="section-head">
-            <p class="kicker">05 / ARCHITECTURE</p>
+            <p class="kicker">06 / ARCHITECTURE</p>
             <h2 id="arch-title">零依赖，但边界清楚</h2>
             <p>标准库做到足够小，也足够容易审计。</p>
           </div>
@@ -1177,19 +1506,19 @@
             <div class="arch-step">
               <small>ENGINE</small>
               <h3>CheckRunnerService</h3>
-              <p>线程池并发执行，每个检查独立超时；失败后按配置有界重试，并把每轮精简状态写入有界历史。</p>
+              <p>后台线程定时采样，线程池并发执行；每个检查独立超时，失败后受限重试，并把每轮精简状态写入有界历史。</p>
             </div>
             <div class="arch-step">
               <small>OUTPUT</small>
-              <h3>看板 / API / 报告</h3>
-              <p>实时页面、只读 API、自包含离线 HTML 共享同一份快照；heartbeat 与事件只来自真实采样。</p>
+              <h3>看板 / 告警 / 报告</h3>
+              <p>实时页面、只读 API、Webhook 账本与自包含 HTML 共享同一份快照；heartbeat、事件和恢复只来自真实采样。</p>
             </div>
           </div>
         </section>
       </div>
 
       <footer class="wrap">
-        <span>SENTINEL v0.5.0 · MIT LICENSE</span>
+        <span>SENTINEL v0.6.0 · MIT LICENSE</span>
         <span>Python standard library · no build chain</span>
         <a href="https://github.com/CiallorZ/ops-health-dashboard">github.com/CiallorZ/ops-health-dashboard ↗</a>
       </footer>

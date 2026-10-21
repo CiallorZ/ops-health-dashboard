@@ -14,6 +14,7 @@
 - `monitor/__init__.py`
 - `dashboard/index.html` 页脚
 - `CHANGELOG.md`
+- `docs/index.html` 的介绍页版本标识
 
 ## 提交前检查
 
@@ -29,9 +30,10 @@
 2. 创建或更新 Pull Request，附实际改动、测试证据与已知限制；
 3. 等待远端 CI 针对最新提交通过；
 4. 确认无冲突、无阻塞评论；
-5. 由维护者按合并策略合入 `main`。
+5. 由维护者按合并策略合入 `main`；
+6. 运行 `scripts/build-release.ps1` 生成带 SHA256 的可下载包；脚本会同时发布到 `docs/downloads/`，供 README 和介绍页直接下载。不要依赖未创建的 GitHub Release；正式 tag/Release 仍按维护者授权单独执行。
 
-**合并不等于发布。** 自动化不得自行创建 tag、GitHub Release、生产部署或修改生产配置。
+合并不等于生产部署。发布包只包含源码与文档，不包含 `data/`、凭据或生产配置。
 
 ## 回滚
 

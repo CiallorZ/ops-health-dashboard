@@ -8,8 +8,9 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from datetime import datetime, timezone
-from typing import Callable
+from typing import Any, Callable
 
+from .alerts import AlertDispatcher
 from .checks import CheckResult, run_check
 from .config import CheckConfig, DashboardConfig, Thresholds
 from .history import HistoryStore, summarize_check_history
@@ -34,15 +35,18 @@ class CheckRunnerService:
         cache_seconds: float = 8.0,
         max_workers: int = 8,
         check_runner: CheckRunner = run_check,
+        alert_dispatcher: AlertDispatcher | None = None,
     ) -> None:
         self.config = config
         self.history = history
         self.cache_seconds = cache_seconds
         self.max_workers = max_workers
         self.check_runner = check_runner
+        self.alert_dispatcher = alert_dispatcher
         self._lock = threading.Lock()
         self._cached: dict | None = None
         self._cached_at = 0.0
+        self._last_statuses: dict[str, str] = {}
 
     def get_snapshot(self, *, force: bool = False, history_limit: int = 40) -> dict:
         request_started = time.monotonic()
@@ -67,6 +71,7 @@ class CheckRunnerService:
             results = self._execute(enabled)
             duration_ms = (time.perf_counter() - started) * 1000
             summary = self._summarize(results)
+            self._dispatch_transitions(results, summary)
             snapshot = {
                 "run_id": uuid.uuid4().hex[:12],
                 "generated_at": run_at,
@@ -97,6 +102,32 @@ class CheckRunnerService:
                 }
             )
             return self._with_history(snapshot, history_limit)
+
+    def _dispatch_transitions(
+        self, results: list[CheckResult], summary: dict[str, Any]
+    ) -> None:
+        if self.alert_dispatcher is None:
+            self._last_statuses.update(
+                {result.id: result.status for result in results}
+            )
+            return
+        for result in results:
+            previous = self._last_statuses.get(result.id)
+            changed = previous is not None and previous != result.status
+            first_failure = previous is None and result.status == "fail"
+            if changed or first_failure:
+                self.alert_dispatcher.notify_transition(result, previous, summary)
+            self._last_statuses[result.id] = result.status
+
+    def alert_status(self, *, limit: int = 12) -> dict[str, Any]:
+        if self.alert_dispatcher is None:
+            return {
+                "configured": False,
+                "signed": False,
+                "pending": 0,
+                "recent": [],
+            }
+        return self.alert_dispatcher.status(limit=limit)
 
     def _execute(self, checks: list[CheckConfig]) -> list[CheckResult]:
         if not checks:

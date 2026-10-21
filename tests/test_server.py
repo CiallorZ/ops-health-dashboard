@@ -21,6 +21,10 @@ class ServerTests(unittest.TestCase):
             json.dumps(
                 {
                     "version": 1,
+                    "monitor_interval_seconds": 60,
+                    "notifications": {
+                        "webhook_url": "http://127.0.0.1:9/hook?token=server-secret"
+                    },
                     "checks": [
                         {
                             "id": "self",
@@ -67,6 +71,27 @@ class ServerTests(unittest.TestCase):
         status, _, body = self.get_json("/api/config")
         self.assertEqual(status, 200)
         self.assertEqual(body["checks"][0]["id"], "self")
+        self.assertTrue(body["notifications"]["configured"])
+        self.assertNotIn("server-secret", json.dumps(body))
+        self.assertNotIn("/hook", json.dumps(body))
+
+    def test_alerts_endpoint_is_redacted_and_bounded(self):
+        status, _, body = self.get_json("/api/alerts?limit=999")
+        self.assertEqual(status, 200)
+        self.assertTrue(body["configured"])
+        self.assertIsInstance(body["recent"], list)
+        self.assertNotIn("server-secret", json.dumps(body))
+        self.assertNotIn("/hook", json.dumps(body))
+
+    def test_status_exposes_background_scheduler_state(self):
+        status, _, body = self.get_json("/api/status?force=1")
+        self.assertEqual(status, 200)
+        self.assertIn("automation", body)
+        self.assertIn("scheduler", body["automation"])
+        self.assertEqual(
+            body["automation"]["scheduler"]["interval_seconds"], 60
+        )
+        self.assertFalse(body["automation"]["scheduler"]["running"])
 
     def test_unknown_api_is_json_404(self):
         with self.assertRaises(urllib.error.HTTPError) as raised:

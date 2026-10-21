@@ -214,6 +214,47 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(second["check_history"]["events"][0]["from"], "fail")
         self.assertEqual(second["check_history"]["events"][0]["to"], "ok")
 
+    def test_alert_dispatcher_receives_failure_and_recovery_transitions(self):
+        statuses = iter(("fail", "ok", "ok", "fail"))
+
+        class RecordingDispatcher:
+            def __init__(self):
+                self.events = []
+
+            def notify_transition(self, check, previous, _summary):
+                self.events.append((check.status, previous))
+
+            def status(self, **_kwargs):
+                return {"configured": True, "recent": []}
+
+        def changing_check(check, thresholds):
+            value = next(statuses)
+            item = fake_check(check, thresholds)
+            item.status = value
+            return item
+
+        dispatcher = RecordingDispatcher()
+        config = DashboardConfig(
+            version=1,
+            thresholds=Thresholds(),
+            checks=(CheckConfig(id="api", name="API", type="ping", target="127.0.0.1"),),
+        )
+        with TemporaryDirectory() as directory:
+            runner = CheckRunnerService(
+                config,
+                HistoryStore(directory),
+                cache_seconds=0,
+                check_runner=changing_check,
+                alert_dispatcher=dispatcher,
+            )
+            for _ in range(4):
+                runner.get_snapshot(force=True)
+
+        self.assertEqual(
+            dispatcher.events,
+            [("fail", None), ("ok", "fail"), ("fail", "ok")],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

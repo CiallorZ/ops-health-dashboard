@@ -15,6 +15,7 @@ python -m unittest discover -s tests -v
 python -W error::ResourceWarning -m unittest discover -s tests -q
 python -m compileall -q monitor toolbox server.py tests
 node --check dashboard\app.js
+node --check scripts\capture-screenshots.mjs
 git diff --check
 ```
 

@@ -1,4 +1,4 @@
-const REFRESH_MS = 30_000;
+const REFRESH_MS = 10_000;
 
 const elements = {
   connection: document.querySelector("#connection"),
@@ -20,6 +20,13 @@ const elements = {
   checkSearch: document.querySelector("#check-search"),
   trendBars: document.querySelector("#trend-bars"),
   transitionList: document.querySelector("#transition-list"),
+  monitorInterval: document.querySelector("#monitor-interval"),
+  schedulerState: document.querySelector("#scheduler-state"),
+  schedulerInterval: document.querySelector("#scheduler-interval"),
+  schedulerLast: document.querySelector("#scheduler-last"),
+  schedulerNext: document.querySelector("#scheduler-next"),
+  alertConfigState: document.querySelector("#alert-config-state"),
+  alertList: document.querySelector("#alert-list"),
   toast: document.querySelector("#toast"),
   thresholdLatencyWarn: document.querySelector("#threshold-latency-warn"),
   thresholdLatencyFail: document.querySelector("#threshold-latency-fail"),
@@ -49,6 +56,22 @@ const statusLabels = {
   unknown: "未知",
 };
 
+const alertStatusLabels = {
+  queued: "排队",
+  delivering: "投递中",
+  retrying: "重试中",
+  delivered: "已送达",
+  failed: "失败",
+  suppressed: "已抑制",
+};
+
+const alertEventLabels = {
+  down: "故障",
+  recovered: "恢复",
+  degraded: "降级",
+  status_change: "状态变化",
+};
+
 function formatNumber(value) {
   return Number.isFinite(value) ? String(Math.round(value)) : "--";
 }
@@ -56,6 +79,13 @@ function formatNumber(value) {
 function formatPercent(value) {
   if (!Number.isFinite(value)) return "--";
   return `${value.toFixed(Number.isInteger(value) ? 0 : 1)}%`;
+}
+
+function formatInterval(value) {
+  if (!Number.isFinite(value)) return "--";
+  if (value < 60) return `${Math.round(value)} 秒`;
+  if (value % 60 === 0) return `${Math.round(value / 60)} 分钟`;
+  return `${Math.round(value)} 秒`;
 }
 
 function formatTime(value) {
@@ -305,12 +335,75 @@ function renderTrend(history) {
   }).join("");
 }
 
+function renderAutomation(data) {
+  const automation = data.automation ?? {};
+  const scheduler = automation.scheduler ?? {};
+  const alerts = automation.alerts ?? {};
+  const running = Boolean(scheduler.running);
+  const failed = Boolean(scheduler.last_error);
+  elements.schedulerState.dataset.state = failed ? "fail" : running ? "ok" : "idle";
+  elements.schedulerState.textContent = failed
+    ? "调度异常"
+    : running
+      ? "后台运行"
+      : "未启动";
+  elements.schedulerInterval.textContent = formatInterval(
+    Number(scheduler.interval_seconds),
+  );
+  elements.schedulerLast.textContent = scheduler.last_completed_at
+    ? formatTime(scheduler.last_completed_at)
+    : "等待首轮";
+  elements.schedulerNext.textContent = running && scheduler.next_run_at
+    ? formatTime(scheduler.next_run_at)
+    : "手动模式";
+
+  const recent = Array.isArray(alerts.recent) ? alerts.recent : [];
+  elements.alertConfigState.textContent = alerts.configured
+    ? `${alerts.signed ? "签名" : "未签名"}${alerts.pending ? ` · ${alerts.pending} 待投递` : ""}`
+    : "未配置";
+  elements.alertConfigState.dataset.state = alerts.configured ? "ok" : "idle";
+
+  if (!alerts.configured) {
+    elements.alertList.innerHTML =
+      '<div class="alert-empty">在 checks.json 中配置 notifications.webhook_url 后启用</div>';
+    return;
+  }
+  if (!recent.length) {
+    elements.alertList.innerHTML =
+      '<div class="alert-empty">还没有状态变化；下一次失败或恢复会出现在这里</div>';
+    return;
+  }
+
+  elements.alertList.innerHTML = recent.slice(0, 4).map((event) => {
+    const delivery = alertStatusLabels[event.status] ? event.status : "failed";
+    const eventType = alertEventLabels[event.event] ? event.event : "status_change";
+    const attempts = Number(event.attempts ?? 0);
+    const attemptLabel = attempts > 1 ? ` · ${attempts} 次` : "";
+    return `
+      <article class="alert-row" data-state="${escapeHtml(delivery)}">
+        <span class="alert-event">${escapeHtml(alertEventLabels[eventType])}</span>
+        <div class="alert-main">
+          <strong>${escapeHtml(event.check_name || event.check_id || "未知检查")}</strong>
+          <p>
+            ${escapeHtml(statusLabels[event.from_status] ?? event.from_status ?? "未知")}
+            → ${escapeHtml(statusLabels[event.to_status] ?? event.to_status ?? "未知")}
+            <span>${escapeHtml(alertStatusLabels[delivery])}${escapeHtml(attemptLabel)}</span>
+          </p>
+        </div>
+        <time datetime="${escapeHtml(event.completed_at || event.created_at)}">${escapeHtml(formatTime(event.completed_at || event.created_at))}</time>
+      </article>
+    `;
+  }).join("");
+}
+
 function renderConfig(config) {
   const thresholds = config?.thresholds ?? {};
   elements.thresholdLatencyWarn.textContent = `${formatNumber(thresholds.latency_warn_ms)} ms`;
   elements.thresholdLatencyFail.textContent = `${formatNumber(thresholds.latency_fail_ms)} ms`;
   elements.thresholdTlsWarn.textContent = `${formatNumber(thresholds.tls_warn_days)} 天`;
   elements.thresholdTlsFail.textContent = `${formatNumber(thresholds.tls_fail_days)} 天`;
+  elements.monitorInterval.textContent =
+    `后台每 ${formatInterval(Number(config?.monitor_interval_seconds))}采样`;
 }
 
 async function fetchJson(path, options) {
@@ -345,6 +438,7 @@ async function loadStatus({ force = false } = {}) {
     renderChecks();
     renderTrend(data.history);
     renderTransitions();
+    renderAutomation(data);
     setConnection("ok", "实时");
     if (force) showToast("已刷新全部检测");
   } catch (error) {
@@ -353,6 +447,10 @@ async function loadStatus({ force = false } = {}) {
     elements.checksList.innerHTML = `<div class="error-state">无法连接本地控制面：${escapeHtml(error.message)}</div>`;
     elements.transitionList.innerHTML =
       `<div class="transition-empty is-error">无法读取状态变化：${escapeHtml(error.message)}</div>`;
+    elements.schedulerState.dataset.state = "fail";
+    elements.schedulerState.textContent = "不可用";
+    elements.alertList.innerHTML =
+      `<div class="alert-empty is-error">无法读取告警账本：${escapeHtml(error.message)}</div>`;
   } finally {
     loading = false;
     elements.refreshButton.disabled = false;
