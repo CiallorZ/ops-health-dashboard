@@ -543,6 +543,86 @@
       .feature[data-tone="amber"]::after { background: var(--amber); box-shadow: 0 0 0 5px rgba(244, 189, 98, 0.12); }
       .feature[data-tone="red"]::after { background: var(--red); box-shadow: 0 0 0 5px rgba(255, 113, 106, 0.12); }
 
+      /* Planned (not yet implemented) domain cards must read as planned. */
+      .feature[data-tone="plan"] {
+        border-style: dashed;
+        background: rgba(11, 18, 22, 0.6);
+      }
+
+      .feature[data-tone="plan"]::after {
+        background: var(--faint);
+        box-shadow: 0 0 0 5px rgba(97, 114, 110, 0.16);
+      }
+
+      .feature .tag {
+        display: inline-block;
+        margin-left: 8px;
+        padding: 2px 7px;
+        border: 1px solid var(--line-strong);
+        border-radius: 999px;
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 9px;
+        letter-spacing: 0.08em;
+        vertical-align: 2px;
+      }
+
+      .phase-list {
+        display: grid;
+        gap: 10px;
+        margin-top: 26px;
+      }
+
+      .phase {
+        display: grid;
+        grid-template-columns: 92px minmax(0, 1fr);
+        gap: 16px;
+        align-items: start;
+        padding: 16px 18px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(16, 23, 27, 0.6);
+      }
+
+      .phase b {
+        color: var(--acid);
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        font-weight: 600;
+      }
+
+      .phase p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12.5px;
+        line-height: 1.8;
+      }
+
+      .feature code,
+      .phase code {
+        padding: 1px 5px;
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        background: rgba(8, 13, 16, 0.7);
+        color: var(--text);
+        font-family: var(--mono);
+        font-size: 11px;
+      }
+
+      .feature strong,
+      .phase strong {
+        color: var(--text);
+        font-weight: 600;
+      }
+
+      @media (max-width: 640px) {
+        .phase {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 6px;
+        }
+      }
+
       /* ---------- gallery ---------- */
       .gallery {
         display: grid;
@@ -1194,6 +1274,7 @@
           <a href="#features">能力</a>
           <a href="#demo">Demo</a>
           <a href="#install">安装</a>
+          <a href="#roadmap">路线</a>
           <a href="https://github.com/CiallorZ/ops-health-dashboard/blob/main/docs/ARCHITECTURE.md">架构</a>
           <a class="gh" href="https://github.com/CiallorZ/ops-health-dashboard">GitHub ↗</a>
         </nav>
@@ -1550,9 +1631,84 @@
             </div>
           </div>
           <p style="margin-top: 28px; color: var(--muted); font-size: 15px;">
-            下一步分层方向（基础设施 / 网络 / 安全 / 云原生 / 中间件 / 数据）与已知缺口见
+            当前只有四类黑盒探测与延迟阈值，要覆盖更多资产类型，需要先补**域 / 探测 / 断言**三层内核。
+            缺口证据（G1–G12）与每层可行性见
             <a href="https://github.com/CiallorZ/ops-health-dashboard/blob/main/docs/ARCHITECTURE.md" style="color: var(--acid); text-decoration: underline;">架构与开发方向</a>，
             版本排期见 <a href="https://github.com/CiallorZ/ops-health-dashboard/blob/main/ROADMAP.md" style="color: var(--acid); text-decoration: underline;">ROADMAP</a>。
+          </p>
+        </section>
+
+        <section class="section" id="roadmap" aria-labelledby="roadmap-title">
+          <div class="section-head">
+            <p class="kicker">07 / ROADMAP</p>
+            <h2 id="roadmap-title">目标：自托管的综合运维监控内核</h2>
+            <p>
+              在同一套证据模型下覆盖七类资产。下面标注“规划中”的项目<strong>尚未实现</strong>——
+              本页只承诺已经能跑的部分，路线不写成能力清单。
+            </p>
+          </div>
+
+          <div class="feature-grid">
+            <article class="feature" data-tone="acid">
+              <span class="index">NOW</span>
+              <h3>网络<span class="tag">已实现</span></h3>
+              <p>ICMP / TCP / TLS / HTTP 四类黑盒探测，独立超时、受限重试、状态迁移告警、长期趋势与证书日历。</p>
+            </article>
+            <article class="feature" data-tone="plan">
+              <span class="index">v0.20</span>
+              <h3>网络增强<span class="tag">规划中</span></h3>
+              <p>DNS（标准库自写报文解析 A / AAAA / CNAME）与 UDP 探测；现有四类接入断言层。不做端口扫描与流量分析。</p>
+            </article>
+            <article class="feature" data-tone="plan">
+              <span class="index">v0.21</span>
+              <h3>安全基线<span class="tag">规划中</span></h3>
+              <p>TLS 协议与套件姿态、HTTP 安全响应头核查、授权端口清单漂移比对。防御性核查，无漏洞库、无 PoC、无爆破。</p>
+            </article>
+            <article class="feature" data-tone="plan">
+              <span class="index">v0.22</span>
+              <h3>主机<span class="tag">规划中</span></h3>
+              <p>CPU / 内存 / 磁盘 / 负载。Linux 读 <code>/proc</code>，Windows 经 <code>ctypes</code> 调系统 API，磁盘跨平台。不做 Agent 分发。</p>
+            </article>
+            <article class="feature" data-tone="plan">
+              <span class="index">v0.23</span>
+              <h3>数据库<span class="tag">规划中</span></h3>
+              <p>Redis（RESP）、MySQL、PostgreSQL 的只读健康查询与指标断言。凭据走引用层，不执行任意 SQL、不读业务数据。</p>
+            </article>
+            <article class="feature" data-tone="plan">
+              <span class="index">v0.24</span>
+              <h3>中间件<span class="tag">规划中</span></h3>
+              <p>Elasticsearch / Nacos / Consul（HTTP 健康端点）先行，Kafka 与 AMQP 做握手级检测。不消费消息、不做管理写操作。</p>
+            </article>
+            <article class="feature" data-tone="plan">
+              <span class="index">v0.25</span>
+              <h3>容器 / K8s<span class="tag">规划中</span></h3>
+              <p>kubelet 与 API Server 只读采集：NotReady 节点数、Pod 重启增量、资源用量断言。不做 exec / logs 流与任何写操作。</p>
+            </article>
+            <article class="feature" data-tone="plan">
+              <span class="index">v0.26</span>
+              <h3>AIoT<span class="tag">规划中</span></h3>
+              <p>MQTT（含保留消息与遗嘱检测）、Modbus TCP 只读功能码、CoAP。不下发指令、不做固件 OTA、不控制设备。</p>
+            </article>
+          </div>
+
+          <div class="phase-list">
+            <div class="phase">
+              <b>PHASE A</b>
+              <p>v0.11–v0.17 内核：单实例锁、<code>/healthz</code> <code>/readyz</code> <code>/metrics</code>、探测注册表与 <code>domain</code> 维度、声明式断言层、<code>secret_ref</code> 凭据作用域、<code>scope</code> 授权范围、SQLite 后端、只读分享令牌与告警 Provider 矩阵。<strong>不新增任何监控域</strong>，只做“让多域成为可能”的事。</p>
+            </div>
+            <div class="phase">
+              <b>PHASE B</b>
+              <p>v0.20–v0.26 逐域落地，每域一个版本、只交付有界的首个切片，排序依据是复用度 → 刚需程度 → 前置依赖。</p>
+            </div>
+            <div class="phase">
+              <b>PHASE C</b>
+              <p>v0.30+ 综合化，按需启动：多实例只读聚合、依赖与拓扑视图、SLO 与错误预算。不做中心写控与数据回传。</p>
+            </div>
+          </div>
+
+          <p style="margin-top: 24px; color: var(--muted); font-size: 13px;">
+            有界原则不因扩展而让步：单实例仍限 200 项检查、采样间隔下限 10 s。
+            需要更大规模说明要多实例分工，而不是放宽上限。
           </p>
         </section>
       </div>

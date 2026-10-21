@@ -29,6 +29,10 @@
 
 Sentinel 面向“先自己看见，再等人投诉”的场景：本机或内网里跑一个小服务，按配置持续检查关键资产，并把真实证据放在一屏里。
 
+**目标**是把它做成自托管的**综合运维监控内核**——在同一套证据模型下覆盖主机、网络、数据库、中间件、容器 / K8s、AIoT 与安全基线，对标 Uptime Kuma 的“一屏看清 + 状态迁移即告警”闭环体验。
+
+**当前已实现**的是网络域的黑盒存活探测（ICMP / TCP / TLS / HTTP）及其配套的调度、告警、趋势、证书、留存与维护窗口。**主机资源、数据库、中间件、K8s、AIoT、安全基线属于规划中的 Phase B，尚未实现**——下面的能力清单只列已落地的部分，路线见 [ROADMAP.md](ROADMAP.md) 与 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
+
 它**不是**一个演示用的大屏，也不伪造成功率：
 
 - 失败就是失败，重试恢复也会保留“曾经失败过”的证据；
@@ -62,7 +66,9 @@ Sentinel 面向“先自己看见，再等人投诉”的场景：本机或内�
 - 状态迁移触发通知，避免把持续失败重复刷成告警风暴；
 - 桌面列表 + 侧栏、移动端单列的响应式阅读方式。
 
-Sentinel 是独立的 Python 标准库实现，不复制 Uptime Kuma 的 Vue / Socket.IO / 关系库架构，也没有内置账号、90+ 通知矩阵或多副本部署能力。它优先解决“单机、自托管、可审计、默认只监听回环地址”的轻量场景；维护窗口、证书日历、长期趋势与告警账本已经在 `v0.8`–`v0.10` 逐步补齐。
+Sentinel 是独立的 Python 标准库实现，不复制 Uptime Kuma 的 Vue / Socket.IO / 关系库架构，也没有内置账号与 90+ 通知矩阵。它优先解决“单机、自托管、可审计、默认只监听回环地址”的轻量场景；维护窗口、证书日历、长期趋势与告警账本已在 `v0.8`–`v0.10` 补齐。
+
+两者的差距不在“功能多少”，而在**抽象层次**：Uptime Kuma 有 monitor 类型 + 断言 + 凭据体系，所以能监控数据库与容器；Sentinel 目前只有四类黑盒探测 + 延迟阈值。因此路线不是逐个抄功能，而是先补**域 / 探测 / 断言**三层内核（Phase A），再逐域落地（Phase B）。这是 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 第 1.2 节与第 5 节的内容。
 
 ## 介绍页
 
@@ -502,15 +508,31 @@ python server.py --port 18080 --config examples\checks.demo.json --data-dir data
 - [x] `v0.8` 证书到期日历：`/api/certificates`、按阈值分级、看板证书面板与单元测试。
 - [x] `v0.9` 历史留存：4 MiB 单文件上限、2 份归档、5000 行加载上限、如实标注截断。
 - [x] `v0.10` 计划维护：有界维护窗口、告警抑制、抑制原因入账与看板面板。
-- [ ] `v0.11` 单实例与运行时观测：文件锁、`/healthz` `/readyz` `/metrics`、systemd 样例。
-- [ ] `v0.12` 访问控制：只读分享令牌、反向代理鉴权示例、读取审计。
-- [ ] `v0.13` 存储演进：`schema_version`、`HistoryBackend`、SQLite 双写与迁移。
-- [ ] `v0.14` 探测扩展：探测注册表、DNS / UDP / gRPC / WS、出站 CIDR 策略。
-- [ ] `v0.15` 告警出口：Slack / Teams / PagerDuty 适配器、模板与静默规则。
-- [ ] `v0.16` 云原生：K8s manifests、Helm chart、镜像构建冒烟。
 
-分层方向、缺口证据与每层的验收标准见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)；
-版本排期见 [ROADMAP.md](ROADMAP.md)。
+**Phase A · 内核（让多域成为可能，不新增监控域）**
+
+- [ ] `v0.11` 单实例锁 + `/healthz` `/readyz` `/metrics` + systemd 样例。
+- [ ] `v0.12` 探测注册表 + `domain` 维度 + 每域并发预算。
+- [ ] `v0.13` 断言层：声明式 `assertions`，判定与采集解耦。
+- [ ] `v0.14` 凭据作用域 `secret_ref` + 授权范围 `scope` / `denied_cidrs`。
+- [ ] `v0.15` 存储演进：`schema_version`、`HistoryBackend`、SQLite 双写与迁移。
+- [ ] `v0.16` 只读分享令牌、反代样例、告警 Provider 矩阵、配置热加载。
+- [ ] `v0.17` K8s manifests、Helm chart、镜像构建冒烟。
+
+**Phase B · 域扩展（每域一个版本，只交付有界首个切片）**
+
+- [ ] `v0.20` `network`：DNS（自写报文）+ UDP。
+- [ ] `v0.21` `security`：TLS 姿态 + HTTP 安全响应头 + 授权端口清单漂移（防御性，无漏洞库）。
+- [ ] `v0.22` `host`：CPU / 内存 / 磁盘 / 负载，Linux + Windows 双实现。
+- [ ] `v0.23` `database`：Redis → MySQL → PostgreSQL，只读健康查询。
+- [ ] `v0.24` `middleware`：ES / Nacos / Consul → Kafka / AMQP（握手级）。
+- [ ] `v0.25` `container`：kubelet / API Server 只读，节点与 Pod 健康断言。
+- [ ] `v0.26` `iot`：MQTT + Modbus TCP（只读功能码）+ CoAP。
+
+**Phase C · 综合化（按需启动）**：`v0.30` 多实例只读聚合 → `v0.31` 依赖拓扑 → `v0.32` SLO 与错误预算。
+
+缺口证据（G1–G12）、每域可行性与不做项见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)；
+可排期的清单见 [ROADMAP.md](ROADMAP.md)。
 
 ## License
 

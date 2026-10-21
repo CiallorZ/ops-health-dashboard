@@ -112,25 +112,39 @@ class UiContractTests(unittest.TestCase):
             self.assertTrue(artifact.is_file(), artifact)
             self.assertTrue(checksum.is_file(), checksum)
 
-    def test_architecture_doc_covers_layers_and_links_roadmap(self):
+    def test_architecture_doc_covers_domains_and_links_roadmap(self):
         architecture = (ROOT / "docs" / "ARCHITECTURE.md").read_text(encoding="utf-8")
         roadmap = (ROOT / "ROADMAP.md").read_text(encoding="utf-8")
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        for layer in (
-            "基础设施与进程模型",
-            "网络探测内核",
-            "安全与访问控制",
-            "云原生",
-            "中间件与告警出口",
-            "数据与存储",
+        # The three abstractions that make multi-domain coverage possible.
+        for abstraction in ("Domain", "Probe", "Assertion"):
+            self.assertIn(abstraction, architecture)
+        # Every planned monitoring domain must appear in both documents.
+        for domain in (
+            "`host`",
+            "`network`",
+            "`database`",
+            "`middleware`",
+            "`container`",
+            "`iot`",
+            "`security`",
         ):
-            self.assertIn(layer, architecture)
+            self.assertIn(domain, architecture)
+            self.assertIn(domain, roadmap)
         # Gaps are referenced by id so roadmap items stay traceable to evidence.
-        for gap in ("G1", "G2", "G3", "G4", "G5", "G6", "G7"):
+        for gap in ("G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9", "G10", "G11", "G12"):
             self.assertIn(gap, architecture)
             self.assertIn(gap, roadmap)
         self.assertIn("docs/ARCHITECTURE.md", roadmap)
         self.assertIn("docs/ARCHITECTURE.md", readme)
+
+    def test_docs_separate_shipped_capabilities_from_planned_domains(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        architecture = (ROOT / "docs" / "ARCHITECTURE.md").read_text(encoding="utf-8")
+        # The new goal must never read as a shipped feature list.
+        self.assertIn("规划", architecture)
+        self.assertIn("尚未实现", readme)
+        self.assertIn("当前已实现", readme)
 
 
 if __name__ == "__main__":
