@@ -7,13 +7,23 @@ All notable changes are documented here. The format follows
 ## [0.11.0] - 2026-10-21
 
 ### Added
-- Single-instance lock for the data directory (): POSIX  / Windows  /  fallback; a second process fails fast with stderr message and exit code 3 without writing history.
--  (process liveness, no sampling) and  (config loaded, data directory writable, scheduler running;  with reasons when not ready).
--  in Prometheus text format; labels restricted to , uid=1000(x00) gid=1000(x00) groups=1000(x00),4(adm),24(cdrom),27(sudo),30(dip),46(plugdev),100(users),986(docker), ; only reports the latest cached snapshot and never triggers a new check run.
-- Unit tests for , , , label contract, and cached/uncached metrics payloads.
+- Single-instance lock for the data directory (`.sentinel.lock`): POSIX `flock`
+  / Windows `msvcrt` / `O_EXCL` fallback; a second process fails fast with
+  stderr message and exit code 3 without writing history.
+- `GET /healthz` (process liveness, no sampling) and `GET /readyz` (config
+  loaded, data directory writable, scheduler running; `503` with reasons when
+  not ready).
+- `GET /metrics` in Prometheus text format; labels restricted to
+  `domain` / `id` / `status`; only reports the latest cached snapshot and never
+  triggers a new check run.
+- Unit tests for the instance lock, `/healthz`, `/readyz`, `/metrics`, label
+  contract, and cached/uncached metrics payloads.
+- `deploy/systemd/sentinel.service` sample with `Restart=on-failure` and
+  `ProtectSystem=strict`.
 
 ### Fixed
-- Lock acquisition failure now propagates to  so the process exits with code 3 instead of returning a bare integer from .
+- Lock acquisition failure now propagates to `main()` so the process exits with
+  code 3 instead of returning a bare integer from `build_server()`.
 
 ## [0.10.0] - 2026-10-21
 

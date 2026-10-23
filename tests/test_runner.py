@@ -1,7 +1,9 @@
 import threading
 import time
 import unittest
+from datetime import datetime, timezone
 from tempfile import TemporaryDirectory
+from unittest import mock
 
 from monitor.checks import CheckResult, isoformat, utc_now
 from monitor.config import CheckConfig, DashboardConfig, Thresholds
@@ -264,22 +266,26 @@ class TrendIntegrationTests(unittest.TestCase):
             checks=(CheckConfig(id="api", name="API", type="ping", target="127.0.0.1"),),
         )
         with TemporaryDirectory() as directory:
-            store = HistoryStore(directory)
-            store.append(
-                {
-                    "run_id": "run-1",
-                    "generated_at": "2026-10-20T23:59:59Z",
-                    "checks": [{"id": "api", "status": "fail", "latency_ms": None}],
-                }
-            )
-            runner = CheckRunnerService(
-                config,
-                store,
-                cache_seconds=60,
-                check_runner=fake_check,
-            )
-            without_trends = runner.get_snapshot(force=True)
-            with_trends = runner.get_snapshot(trend_days=7)
+            with mock.patch(
+                "monitor.runner._utc_now",
+                return_value=datetime(2026, 10, 21, tzinfo=timezone.utc),
+            ):
+                store = HistoryStore(directory)
+                store.append(
+                    {
+                        "run_id": "run-1",
+                        "generated_at": "2026-10-20T23:59:59Z",
+                        "checks": [{"id": "api", "status": "fail", "latency_ms": None}],
+                    }
+                )
+                runner = CheckRunnerService(
+                    config,
+                    store,
+                    cache_seconds=60,
+                    check_runner=fake_check,
+                )
+                without_trends = runner.get_snapshot(force=True)
+                with_trends = runner.get_snapshot(trend_days=7)
 
         self.assertNotIn("trends", without_trends)
         trends = with_trends["trends"]
@@ -296,22 +302,26 @@ class TrendIntegrationTests(unittest.TestCase):
             checks=(CheckConfig(id="api", name="API", type="ping", target="127.0.0.1"),),
         )
         with TemporaryDirectory() as directory:
-            store = HistoryStore(directory)
-            runner = CheckRunnerService(
-                config,
-                store,
-                cache_seconds=60,
-                check_runner=fake_check,
-            )
-            runner.get_snapshot(force=True)
-            store.append(
-                {
-                    "run_id": "injected",
-                    "generated_at": "2026-10-19T00:00:00Z",
-                    "checks": [{"id": "api", "status": "warn", "latency_ms": 30.0}],
-                }
-            )
-            trends = runner.get_trends(days=30)
+            with mock.patch(
+                "monitor.runner._utc_now",
+                return_value=datetime(2026, 10, 21, tzinfo=timezone.utc),
+            ):
+                store = HistoryStore(directory)
+                runner = CheckRunnerService(
+                    config,
+                    store,
+                    cache_seconds=60,
+                    check_runner=fake_check,
+                )
+                runner.get_snapshot(force=True)
+                store.append(
+                    {
+                        "run_id": "injected",
+                        "generated_at": "2026-10-19T00:00:00Z",
+                        "checks": [{"id": "api", "status": "warn", "latency_ms": 30.0}],
+                    }
+                )
+                trends = runner.get_trends(days=30)
 
         self.assertEqual(trends["days_with_data"], 2)
         self.assertEqual(list(trends["daily"]), ["2026-10-21", "2026-10-19"])
