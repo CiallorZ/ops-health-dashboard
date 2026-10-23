@@ -1,0 +1,27 @@
+[Unit]
+Description=Sentinel ops-health-dashboard
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/sentinel
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /opt/sentinel/server.py --host 127.0.0.1 --port 8080 --config /opt/sentinel/checks.json --data-dir /var/lib/sentinel
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadOnlyPaths=/opt/sentinel
+ReadWritePaths=/var/lib/sentinel /var/lib/sentinel/data
+CapabilityBoundingSet=
+LockPersonality=true
+MemoryDenyWriteExecute=true
+PrivateTmp=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

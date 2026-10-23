@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#080d10">
     <meta
       name="description"
-      content="Sentinel 是一个零依赖、默认只监听本机的运维健康看板：ICMP、TCP、TLS 与 HTTP 检测汇入同一条可信时间线。"
+      content="Sentinel 是一个零依赖、默认只监听本机的运维健康看板：四类检测、逐项 heartbeat、可用率、搜索与真实状态变化。"
     >
     <title>Sentinel · 本地优先的运维健康看板</title>
     <link
@@ -485,14 +485,14 @@
 
       .feature-grid {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 14px;
         margin-top: 40px;
       }
 
       .feature {
         position: relative;
-        min-height: 208px;
+        min-height: 220px;
         padding: 24px 22px;
         overflow: hidden;
         border: 1px solid var(--line);
@@ -543,6 +543,86 @@
       .feature[data-tone="amber"]::after { background: var(--amber); box-shadow: 0 0 0 5px rgba(244, 189, 98, 0.12); }
       .feature[data-tone="red"]::after { background: var(--red); box-shadow: 0 0 0 5px rgba(255, 113, 106, 0.12); }
 
+      /* Planned (not yet implemented) domain cards must read as planned. */
+      .feature[data-tone="plan"] {
+        border-style: dashed;
+        background: rgba(11, 18, 22, 0.6);
+      }
+
+      .feature[data-tone="plan"]::after {
+        background: var(--faint);
+        box-shadow: 0 0 0 5px rgba(97, 114, 110, 0.16);
+      }
+
+      .feature .tag {
+        display: inline-block;
+        margin-left: 8px;
+        padding: 2px 7px;
+        border: 1px solid var(--line-strong);
+        border-radius: 999px;
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 9px;
+        letter-spacing: 0.08em;
+        vertical-align: 2px;
+      }
+
+      .phase-list {
+        display: grid;
+        gap: 10px;
+        margin-top: 26px;
+      }
+
+      .phase {
+        display: grid;
+        grid-template-columns: 92px minmax(0, 1fr);
+        gap: 16px;
+        align-items: start;
+        padding: 16px 18px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(16, 23, 27, 0.6);
+      }
+
+      .phase b {
+        color: var(--acid);
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        font-weight: 600;
+      }
+
+      .phase p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12.5px;
+        line-height: 1.8;
+      }
+
+      .feature code,
+      .phase code {
+        padding: 1px 5px;
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        background: rgba(8, 13, 16, 0.7);
+        color: var(--text);
+        font-family: var(--mono);
+        font-size: 11px;
+      }
+
+      .feature strong,
+      .phase strong {
+        color: var(--text);
+        font-weight: 600;
+      }
+
+      @media (max-width: 640px) {
+        .phase {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 6px;
+        }
+      }
+
       /* ---------- gallery ---------- */
       .gallery {
         display: grid;
@@ -572,6 +652,163 @@
         color: var(--faint);
         font-family: var(--mono);
         font-size: 9px;
+      }
+
+      /* ---------- local demo ---------- */
+      .demo-board {
+        display: grid;
+        grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+        gap: 16px;
+        margin-top: 40px;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        background:
+          radial-gradient(circle at 8% 0, rgba(181, 243, 107, 0.08), transparent 26rem),
+          rgba(12, 18, 22, 0.78);
+      }
+
+      .demo-copy {
+        padding: 24px 20px;
+      }
+
+      .demo-label {
+        color: var(--acid);
+        font-family: var(--mono);
+        font-size: 9px;
+        letter-spacing: 0.12em;
+      }
+
+      .demo-copy h3 {
+        max-width: 420px;
+        margin: 25px 0 12px;
+        font-size: clamp(24px, 3vw, 36px);
+        font-weight: 600;
+        letter-spacing: -0.05em;
+        line-height: 1.08;
+      }
+
+      .demo-steps {
+        display: grid;
+        gap: 0;
+        margin: 26px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .demo-steps li {
+        display: grid;
+        gap: 5px;
+        padding: 13px 0;
+        border-top: 1px solid var(--line);
+      }
+
+      .demo-steps b {
+        color: var(--text);
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .demo-steps span {
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.65;
+      }
+
+      .demo-console {
+        overflow: hidden;
+        border: 1px solid var(--line-strong);
+        border-radius: 14px;
+        background:
+          linear-gradient(180deg, rgba(181, 243, 107, 0.025), transparent 35%),
+          #070b0e;
+        box-shadow: 0 28px 60px rgba(0, 0, 0, 0.32);
+      }
+
+      .demo-console-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 15px;
+        border-bottom: 1px solid var(--line);
+        color: var(--faint);
+        font-family: var(--mono);
+        font-size: 9px;
+        letter-spacing: 0.06em;
+      }
+
+      .demo-console-bar i {
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        margin-right: 6px;
+        border-radius: 50%;
+        background: var(--acid);
+        box-shadow: 0 0 0 4px var(--acid-soft);
+      }
+
+      .demo-event {
+        display: grid;
+        grid-template-columns: 52px 112px minmax(0, 1fr);
+        gap: 10px;
+        align-items: baseline;
+        margin: 0 15px;
+        padding: 13px 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .demo-event time,
+      .demo-event strong {
+        font-family: var(--mono);
+      }
+
+      .demo-event time {
+        color: var(--faint);
+        font-size: 9px;
+      }
+
+      .demo-event strong {
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 500;
+      }
+
+      .demo-event span {
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.6;
+      }
+
+      .demo-event[data-tone="ok"] strong { color: var(--acid); }
+      .demo-event[data-tone="warn"] strong { color: var(--amber); }
+      .demo-event[data-tone="fail"] strong { color: var(--red); }
+
+      .demo-command {
+        display: grid;
+        gap: 8px;
+        padding: 15px;
+      }
+
+      .demo-command span {
+        color: var(--faint);
+        font-family: var(--mono);
+        font-size: 9px;
+        letter-spacing: 0.08em;
+      }
+
+      .demo-command code {
+        display: block;
+        overflow-x: auto;
+        padding: 8px 10px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        color: #cfe3d4;
+        background: rgba(255, 255, 255, 0.02);
+        font-family: var(--mono);
+        font-size: 9px;
+        white-space: nowrap;
       }
 
       /* ---------- evidence ---------- */
@@ -681,6 +918,72 @@
       .steps b {
         color: var(--text);
         font-weight: 600;
+      }
+
+      #install {
+        grid-template-columns: 1fr;
+      }
+
+      .install-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 26px;
+      }
+
+      .install-card {
+        min-height: 190px;
+        padding: 20px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(16, 23, 27, 0.76);
+      }
+
+      .install-card[data-tone="acid"] {
+        border-top-color: rgba(181, 243, 107, 0.5);
+      }
+
+      .install-card[data-tone="amber"] {
+        border-top-color: rgba(244, 189, 98, 0.5);
+      }
+
+      .install-card > span {
+        color: var(--faint);
+        font-family: var(--mono);
+        font-size: 9px;
+        letter-spacing: 0.1em;
+      }
+
+      .install-card h3 {
+        margin: 28px 0 9px;
+        font-size: 17px;
+        font-weight: 600;
+        letter-spacing: -0.03em;
+      }
+
+      .install-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.7;
+      }
+
+      .install-card code,
+      .install-card a {
+        display: inline-block;
+        margin-top: 16px;
+        color: var(--acid);
+        font-family: var(--mono);
+        font-size: 10px;
+        text-decoration: none;
+      }
+
+      .compact-steps {
+        max-width: 940px;
+      }
+
+      #install .terminal {
+        width: min(940px, 100%);
       }
 
       .terminal {
@@ -857,8 +1160,13 @@
 
         .gallery,
         .evidence,
-        .start {
+        .start,
+        .demo-board {
           grid-template-columns: 1fr;
+        }
+
+        .install-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
         .gallery-side {
@@ -899,8 +1207,17 @@
         }
 
         .feature-grid,
-        .arch {
+        .arch,
+        .install-grid {
           grid-template-columns: 1fr;
+        }
+
+        .demo-event {
+          grid-template-columns: 44px minmax(0, 1fr);
+        }
+
+        .demo-event span {
+          grid-column: 2;
         }
 
         .arch-step::after {
@@ -955,8 +1272,10 @@
         </a>
         <nav class="nav-links" aria-label="主导航">
           <a href="#features">能力</a>
-          <a href="#preview">界面</a>
-          <a href="#start">快速开始</a>
+          <a href="#demo">Demo</a>
+          <a href="#install">安装</a>
+          <a href="#roadmap">路线</a>
+          <a href="https://github.com/CiallorZ/ops-health-dashboard/blob/main/docs/ARCHITECTURE.md">架构</a>
           <a class="gh" href="https://github.com/CiallorZ/ops-health-dashboard">GitHub ↗</a>
         </nav>
       </div>
@@ -966,20 +1285,20 @@
       <div class="wrap">
         <section class="hero" aria-labelledby="title">
           <div class="hero-copy">
-            <p class="kicker"><span class="dot" aria-hidden="true"></span> LOCAL-FIRST OBSERVABILITY · v0.4.0</p>
+<p class="kicker"><span class="dot" aria-hidden="true"></span> LOCAL-FIRST OBSERVABILITY · v0.11.0</p>
             <h1 id="title">把异常<br><em>提前看见</em><span class="period">。</span></h1>
             <p class="lead">
-              ICMP、TCP、TLS 与 HTTP 检测汇入同一条实时时间线。
-              没有演示模式，没有伪造成功率——你看到的就是当前环境正在发生的事实。
+              ICMP、TCP、TLS 与 HTTP 在后台持续采样，汇入同一条实时时间线。
+              每项资产拥有 heartbeat、可用率、真实状态变化与 Webhook 投递证据，没有伪造成功率。
             </p>
             <div class="cta">
-              <a class="btn primary" href="#start">5 分钟启动 →</a>
-              <a class="btn ghost" href="https://github.com/CiallorZ/ops-health-dashboard">查看源码</a>
+<a class="btn primary" href="downloads/sentinel-0.11.0.zip">下载 v0.10.0 →</a>
+              <a class="btn ghost" href="#demo">运行本地 Demo</a>
             </div>
             <dl class="facts">
-              <div><dt>0</dt><dd>运行时依赖</dd></div>
+              <div><dt>10s+</dt><dd>后台采样周期</dd></div>
               <div><dt>4</dt><dd>检测类型</dd></div>
-              <div><dt>127.0.0.1</dt><dd>默认监听</dd></div>
+              <div><dt>0</dt><dd>运行时依赖</dd></div>
             </dl>
           </div>
 
@@ -987,18 +1306,18 @@
             <div class="shot-frame">
               <span class="shot-scan" aria-hidden="true"></span>
               <img
-                src="assets/dashboard-desktop.png"
-                alt="Sentinel 看板桌面截图：总体状态、检测汇总、资产检测列表与近期健康轨迹"
+                src="assets/dashboard-hero.png"
+                alt="Sentinel 看板桌面截图：总体状态、逐项 heartbeat、可用率、搜索筛选与状态变化"
                 width="1440"
-                height="1600"
+                height="1000"
               >
             </div>
             <div class="shot-mobile">
               <img
-                src="assets/dashboard-mobile.png"
+                src="assets/dashboard-mobile-hero.png"
                 alt="Sentinel 看板移动端截图"
                 width="390"
-                height="1000"
+                height="844"
               >
             </div>
           </div>
@@ -1012,22 +1331,30 @@
             <span><s>● FAIL</s> 旧版任务端口 · 拒绝连接</span>
             <span><b>↻ RETRY</b> 对账 API · 第 2 次恢复</span>
             <span>REPORT / 自包含 HTML</span>
-            <span>HISTORY / 最近 40 次</span>
+            <span>HEARTBEAT / 每项最近 40 轮</span>
+            <span>SEARCH / 名称 · 目标 · 分组 · 标签</span>
+            <span><b>EVENT</b> 旧版任务端口 · OK → FAIL</span>
+            <span><b>AUTO</b> 后台每 60 秒 · 浏览器关闭仍运行</span>
+            <span><b>WEBHOOK</b> 状态迁移 · 冷却 · 重试 · 签名</span>
             <span><b>● OK</b> 控制面 API · 12 ms</span>
             <span><b>● OK</b> 本机回环 ICMP</span>
             <span><i>● WARN</i> 商品目录 API · 1.2 s</span>
             <span><s>● FAIL</s> 旧版任务端口 · 拒绝连接</span>
             <span><b>↻ RETRY</b> 对账 API · 第 2 次恢复</span>
             <span>REPORT / 自包含 HTML</span>
-            <span>HISTORY / 最近 40 次</span>
+            <span>HEARTBEAT / 每项最近 40 轮</span>
+            <span>SEARCH / 名称 · 目标 · 分组 · 标签</span>
+            <span><b>EVENT</b> 旧版任务端口 · OK → FAIL</span>
+            <span><b>AUTO</b> 后台每 60 秒 · 浏览器关闭仍运行</span>
+            <span><b>WEBHOOK</b> 状态迁移 · 冷却 · 重试 · 签名</span>
           </div>
         </div>
 
         <section class="section" id="features" aria-labelledby="features-title">
           <div class="section-head">
             <p class="kicker">01 / CAPABILITIES</p>
-            <h2 id="features-title">六件事，都围绕“可信”</h2>
-            <p>不追求大而全。只把运维每天都要回答的几个问题，做扎实、做透明。</p>
+            <h2 id="features-title">十二件事，形成完整监测闭环</h2>
+            <p>借鉴 Uptime Kuma 的后台监测、heartbeat、状态迁移与通知逻辑，同时保留 Sentinel 的零依赖、本地优先和证据边界。</p>
           </div>
 
           <div class="feature-grid">
@@ -1043,8 +1370,8 @@
             </article>
             <article class="feature" data-tone="acid">
               <span class="index">03</span>
-              <h3>业务分组</h3>
-              <p>按核心业务、遗留系统、外部依赖分组呈现，先看最重要的那一组。</p>
+              <h3>Monitor 式快速定位</h3>
+              <p>业务分组、标签、名称 / 目标搜索与状态筛选共同工作，先看最该处置的那一项。</p>
             </article>
             <article class="feature" data-tone="acid">
               <span class="index">04</span>
@@ -1053,13 +1380,43 @@
             </article>
             <article class="feature" data-tone="amber">
               <span class="index">05</span>
-              <h3>健康轨迹</h3>
-              <p>每轮快照写入本地 JSONL，页面展示最近 40 次健康走势，异常不是孤立的一帧。</p>
+              <h3>Heartbeat 与变化事件</h3>
+              <p>每项保存最近 40 轮精简状态与延迟，展示可用率；只有相邻真实采样变化时才记录 Important Event。</p>
             </article>
             <article class="feature" data-tone="red">
               <span class="index">06</span>
               <h3>本地优先</h3>
-              <p>默认只监听 127.0.0.1，CSP、nosniff、禁止 iframe；不采集凭据，不向外部回传配置。</p>
+              <p>默认只监听 127.0.0.1，CSP、nosniff、禁止 iframe；不采集凭据。</p>
+            </article>
+            <article class="feature" data-tone="acid">
+              <span class="index">07</span>
+              <h3>后台持续监测</h3>
+              <p>页面关闭也不会停。后台按 10–3600 秒周期采样，服务端保留最新快照与逐项 heartbeat。</p>
+            </article>
+            <article class="feature" data-tone="amber">
+              <span class="index">08</span>
+              <h3>Webhook 告警闭环</h3>
+              <p>故障、降级与恢复触发 JSON Webhook；按迁移去重、冷却、有限重试，可选 HMAC-SHA256 签名。</p>
+            </article>
+            <article class="feature" data-tone="acid">
+              <span class="index">09</span>
+              <h3>长期趋势与延迟分位</h3>
+              <p>按真实 UTC 日聚合可用率与 p50 / p95；只统计有采样的日期，缺失日期不会被补造。</p>
+            </article>
+            <article class="feature" data-tone="amber">
+              <span class="index">10</span>
+              <h3>证书到期日历</h3>
+              <p>从真实 TLS 握手返回的到期时间计算剩余天数，按阈值分级；握手失败或缺少证书指标的检查不出现，也不推测。</p>
+            </article>
+            <article class="feature" data-tone="acid">
+              <span class="index">11</span>
+              <h3>有界历史留存</h3>
+              <p>单文件 4 MiB、2 份归档、最多加载 5000 行；超额自动轮转，截断状态在 API 和页面如实标注。</p>
+            </article>
+            <article class="feature" data-tone="amber">
+              <span class="index">12</span>
+              <h3>计划维护窗口</h3>
+              <p>发布或迁移期间继续真实采样，只抑制被覆盖检查的 Webhook，并把窗口名称写进告警账本，避免告警风暴。</p>
             </article>
           </div>
         </section>
@@ -1068,7 +1425,7 @@
           <div class="section-head">
             <p class="kicker">02 / INTERFACE</p>
             <h2 id="preview-title">一屏之内，先看结论</h2>
-            <p>总体姿态、四项计数、逐项证据与历史轨迹，都在同一页完成阅读。</p>
+            <p>总体姿态、四项计数、每项 heartbeat、可用率、搜索、筛选与最近事件，都在同一页完成阅读。</p>
           </div>
 
           <div class="gallery">
@@ -1077,12 +1434,12 @@
                 src="assets/dashboard-desktop.png"
                 alt="桌面端看板完整界面"
                 width="1440"
-                height="1600"
+                height="2926"
                 loading="lazy"
               >
               <figcaption class="gallery-caption">
-                <span>DESKTOP / 1440 × 1180</span>
-                <span>真实取样 · 本地替身环境</span>
+                <span>DESKTOP / 1440 PX</span>
+                <span>真实取样 · 40 轮 heartbeat · 本地替身环境</span>
               </figcaption>
             </figure>
             <figure class="gallery-side">
@@ -1090,7 +1447,7 @@
                 src="assets/dashboard-mobile.png"
                 alt="移动端看板界面"
                 width="390"
-                height="1000"
+                height="5149"
                 loading="lazy"
               >
               <figcaption class="gallery-caption">
@@ -1101,16 +1458,67 @@
           </div>
         </section>
 
-        <section class="evidence" aria-labelledby="evidence-title">
+        <section class="section" id="demo" aria-labelledby="demo-title">
+          <div class="section-head">
+            <p class="kicker">03 / LOCAL DEMO</p>
+            <h2 id="demo-title">一次本地演练，看见告警闭环</h2>
+            <p>Demo 不访问公网：本地 HTTP 替身提供成功、延迟、重试恢复、故障端口与 Webhook 接收器，所有状态都由真实检测产生。</p>
+          </div>
+
+          <div class="demo-board">
+            <div class="demo-copy">
+              <span class="demo-label">REPRODUCIBLE / 127.0.0.1</span>
+              <h3>从 OK 到 FAIL，再到可审计的 Webhook。</h3>
+              <ol class="demo-steps">
+                <li><b>启动替身</b><span>成功、慢响应、抖动恢复、三次握手后关闭的旧端口与本地 Webhook。</span></li>
+                <li><b>启动 Sentinel</b><span>后台调度自动积累 heartbeat，不需反复刷新页面。</span></li>
+                <li><b>观察状态迁移</b><span>旧端口从正常变为失败，告警账本出现真实投递结果。</span></li>
+                <li><b>验证证据边界</b><span>页面、API、报告和告警都不回显 Webhook URL 或签名秘密。</span></li>
+              </ol>
+            </div>
+            <div class="demo-console" aria-label="本地 Demo 事件时间线">
+              <div class="demo-console-bar">
+                <span><i></i> SENTINEL / LOCAL DEMO</span>
+                <span>18080 → 18081</span>
+              </div>
+              <div class="demo-event" data-tone="ok">
+                <time>00:00</time><strong>5 / 6 OK</strong><span>商品目录 API 延迟预警</span>
+              </div>
+              <div class="demo-event" data-tone="warn">
+                <time>00:10</time><strong>RETRY</strong><span>对账 API 第 2 次尝试恢复，保留恢复证据</span>
+              </div>
+              <div class="demo-event" data-tone="fail">
+                <time>00:20</time><strong>OK → FAIL</strong><span>旧版任务端口拒绝连接</span>
+              </div>
+              <div class="demo-event" data-tone="ok">
+                <time>00:20</time><strong>WEBHOOK 204</strong><span>down 事件已送达，1 次尝试</span>
+              </div>
+              <div class="demo-event" data-tone="ok">
+                <time>00:30</time><strong>NEXT SAMPLE</strong><span>浏览器关闭，后台仍按 10 秒周期采样</span>
+              </div>
+              <div class="demo-event" data-tone="warn">
+                <time>00:40</time><strong>MAINTENANCE</strong><span>结算服务发布窗口生效，告警记为 suppressed</span>
+              </div>
+              <div class="demo-command">
+                <span>快速复现</span>
+                <code>python examples\demo_targets.py --port 18081</code>
+                <code>python server.py --port 18080 --config examples\checks.demo.json --data-dir data\demo</code>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="evidence" id="evidence" aria-labelledby="evidence-title">
           <div>
-            <p class="kicker">03 / EVIDENCE BOUNDARY</p>
+            <p class="kicker">04 / EVIDENCE BOUNDARY</p>
             <h2 id="evidence-title">状态要能解释，</h2>
             <p style="color: var(--text); font-size: clamp(22px, 3vw, 32px); font-weight: 600; letter-spacing: -0.04em; line-height: 1.1; margin-bottom: 14px;">
               而不是看起来好看。
             </p>
             <p>
               每一项结果都保留原始证据：延迟、状态码、证书到期时间、错误原因与尝试次数。
-              “失败”就是失败，不会因为重试成功而抹掉曾经发生过的事实。
+              “失败”就是失败，不会因为重试成功而抹掉曾经发生过的事实。可用率是“最近窗口内非 fail 样本占比”，
+              明确区别于 SLA 或时间加权统计。
             </p>
           </div>
           <div class="state-list">
@@ -1129,36 +1537,78 @@
           </div>
         </section>
 
-        <section class="start" id="start" aria-labelledby="start-title">
+        <section class="start" id="install" aria-labelledby="start-title">
           <div>
-            <p class="kicker">04 / QUICK START</p>
-            <h2 id="start-title" style="font-size: clamp(28px, 3.8vw, 44px);">三步，把事实放到眼前</h2>
-            <ol class="steps">
-              <li><b>确认 Python 3.11+</b><br>不需要 pip 安装任何运行时依赖。</li>
-              <li><b>编辑 checks.json</b><br>写入你的主机、端口、证书域名与 HTTP 健康地址。</li>
-              <li><b>启动并打开浏览器</b><br>默认地址 http://127.0.0.1:8080，每 30 秒自动刷新。</li>
+            <p class="kicker">05 / INSTALL</p>
+            <h2 id="start-title" style="font-size: clamp(28px, 3.8vw, 44px);">三种安装方式，同一套事实</h2>
+            <p style="color: var(--muted); font-size: 13px; line-height: 1.8; margin: 0;">
+              第一次使用推荐直接下载便携包；服务器环境使用 Docker；需要审计或二次开发时从源码运行。
+              所有方式都不需要数据库，不依赖第三方 Python 包。
+            </p>
+            <div class="install-grid">
+              <article class="install-card" data-tone="acid">
+                <span>01 / WINDOWS</span>
+                <h3>便携源码包</h3>
+                <p>下载 ZIP，解压，确认 Python 3.11+，双击 <code>start-sentinel.cmd</code>。</p>
+                <a href="downloads/sentinel-0.11.0.zip">下载 v0.10.0 ↗</a>
+                <a href="downloads/sentinel-0.11.0.zip.sha256">校验文件</a>
+              </article>
+              <article class="install-card" data-tone="amber">
+                <span>02 / DOCKER</span>
+                <h3>Compose 容器</h3>
+                <p>只映射到 <code>127.0.0.1:8080</code>，历史与告警账本写入 Docker volume。</p>
+                <code>docker compose up --build -d</code>
+              </article>
+              <article class="install-card" data-tone="neutral">
+                <span>03 / SOURCE</span>
+                <h3>零依赖运行</h3>
+                <p>适合审计、开发与自定义配置。复制仓库后直接启动 Python 标准库服务。</p>
+                <code>python server.py</code>
+              </article>
+            </div>
+            <ol class="steps compact-steps">
+              <li><b>编辑 checks.json</b><br>声明 HTTP、TCP、TLS、ICMP 目标、分组与阈值。</li>
+              <li><b>配置后台周期与告警</b><br>设置 <code>monitor_interval_seconds</code>；生产环境优先用 <code>*_env</code> 注入 Webhook 秘密。</li>
+              <li><b>安排维护窗口</b><br>在 <code>maintenance_windows</code> 中声明发布时段与覆盖检查；窗口内继续采样，只抑制告警。</li>
+              <li><b>打开并持续观测</b><br>页面每 10 秒同步最新快照，后台持续采样，异常迁移写入告警账本。</li>
             </ol>
           </div>
 
-          <div class="terminal" aria-label="快速开始命令">
-            <div class="terminal-bar">POWERSHELL / SENTINEL</div>
-            <pre><span class="c"># 1. 启动本地看板</span>
+          <div class="terminal" aria-label="安装与启动命令">
+            <div class="terminal-bar">POWERSHELL / SENTINEL v0.10.0</div>
+            <pre><span class="c"># 1. 下载并解压便携包后</span>
+<span class="g">cd</span> sentinel-0.10.0
+<span class="g">.\start-sentinel.cmd</span>
+
+<span class="c"># 2. 或直接从源码启动</span>
 <span class="g">python</span> server.py
 
-<span class="c"># 2. 打开浏览器</span>
+<span class="c"># 3. 打开看板与下载本轮报告</span>
 <span class="y">http://127.0.0.1:8080</span>
-
-<span class="c"># 3. 下载本轮离线诊断报告</span>
 <span class="y">http://127.0.0.1:8080/api/report</span>
 
-<span class="c"># 可选：查看当前版本</span>
-<span class="g">python</span> server.py --version</pre>
+<span class="c"># 4. 验证后台调度与告警账本</span>
+<span class="g">curl</span> http://127.0.0.1:8080/api/health
+<span class="g">curl</span> http://127.0.0.1:8080/api/alerts
+
+<span class="c"># 5. 读取按天趋势与证书到期日历</span>
+<span class="g">curl</span> http://127.0.0.1:8080/api/trends?days=7
+<span class="g">curl</span> http://127.0.0.1:8080/api/certificates
+
+<span class="c"># 6. 检查历史留存上限与真实占用</span>
+<span class="g">curl</span> http://127.0.0.1:8080/api/health
+
+<span class="c"># 7. 读取维护窗口与告警抑制状态</span>
+<span class="g">curl</span> http://127.0.0.1:8080/api/maintenance
+
+<span class="c"># 8. 仅调试页面，不启动后台采样</span>
+<span class="g">python</span> server.py --no-scheduler --version</pre>
           </div>
         </section>
 
         <section class="section architecture" aria-labelledby="arch-title">
           <div class="section-head">
-            <p class="kicker">05 / ARCHITECTURE</p>
+            <p class="kicker">06 / ARCHITECTURE</p>
             <h2 id="arch-title">零依赖，但边界清楚</h2>
             <p>标准库做到足够小，也足够容易审计。</p>
           </div>
@@ -1167,24 +1617,104 @@
             <div class="arch-step">
               <small>INPUT</small>
               <h3>checks.json</h3>
-              <p>声明式配置：目标、类型、超时、阈值、分组与受限重试。启动时严格校验，拒绝带凭据的 URL。</p>
+              <p>声明式配置：目标、类型、超时、阈值、分组、标签与受限重试；最多 200 项，启动时严格校验并拒绝带凭据的 URL。</p>
             </div>
             <div class="arch-step">
               <small>ENGINE</small>
               <h3>CheckRunnerService</h3>
-              <p>线程池并发执行，每个检查独立超时；失败后按配置有界重试，最终只保留有证据的结论。</p>
+              <p>后台线程定时采样，线程池并发执行；每个检查独立超时，失败后受限重试，并把每轮精简状态写入有界历史。</p>
             </div>
             <div class="arch-step">
               <small>OUTPUT</small>
-              <h3>看板 / API / 报告</h3>
-              <p>实时页面、只读 API、自包含离线 HTML 三类输出共享同一份快照与脱敏规则。</p>
+              <h3>看板 / 告警 / 报告</h3>
+              <p>实时页面、只读 API、Webhook 账本与自包含 HTML 共享同一份快照；heartbeat、事件和恢复只来自真实采样。</p>
             </div>
           </div>
+          <p style="margin-top: 28px; color: var(--muted); font-size: 15px;">
+            当前只有四类黑盒探测与延迟阈值，要覆盖更多资产类型，需要先补**域 / 探测 / 断言**三层内核。
+            缺口证据（G1–G12）与每层可行性见
+            <a href="https://github.com/CiallorZ/ops-health-dashboard/blob/main/docs/ARCHITECTURE.md" style="color: var(--acid); text-decoration: underline;">架构与开发方向</a>，
+            版本排期见 <a href="https://github.com/CiallorZ/ops-health-dashboard/blob/main/ROADMAP.md" style="color: var(--acid); text-decoration: underline;">ROADMAP</a>。
+          </p>
+        </section>
+
+        <section class="section" id="roadmap" aria-labelledby="roadmap-title">
+          <div class="section-head">
+            <p class="kicker">07 / ROADMAP</p>
+            <h2 id="roadmap-title">目标：自托管的综合运维监控内核</h2>
+            <p>
+              在同一套证据模型下覆盖七类资产。下面标注“规划中”的项目<strong>尚未实现</strong>——
+              本页只承诺已经能跑的部分，路线不写成能力清单。
+            </p>
+          </div>
+
+          <div class="feature-grid">
+            <article class="feature" data-tone="acid">
+              <span class="index">NOW</span>
+              <h3>网络<span class="tag">已实现</span></h3>
+              <p>ICMP / TCP / TLS / HTTP 四类黑盒探测，独立超时、受限重试、状态迁移告警、长期趋势与证书日历。</p>
+            </article>
+            <article class="feature" data-tone="plan">
+              <span class="index">v0.20</span>
+              <h3>网络增强<span class="tag">规划中</span></h3>
+              <p>DNS（标准库自写报文解析 A / AAAA / CNAME）与 UDP 探测；现有四类接入断言层。不做端口扫描与流量分析。</p>
+            </article>
+            <article class="feature" data-tone="plan">
+              <span class="index">v0.21</span>
+              <h3>安全基线<span class="tag">规划中</span></h3>
+              <p>TLS 协议与套件姿态、HTTP 安全响应头核查、授权端口清单漂移比对。防御性核查，无漏洞库、无 PoC、无爆破。</p>
+            </article>
+            <article class="feature" data-tone="plan">
+              <span class="index">v0.22</span>
+              <h3>主机<span class="tag">规划中</span></h3>
+              <p>CPU / 内存 / 磁盘 / 负载。Linux 读 <code>/proc</code>，Windows 经 <code>ctypes</code> 调系统 API，磁盘跨平台。不做 Agent 分发。</p>
+            </article>
+            <article class="feature" data-tone="plan">
+              <span class="index">v0.23</span>
+              <h3>数据库<span class="tag">规划中</span></h3>
+              <p>Redis（RESP）、MySQL、PostgreSQL 的只读健康查询与指标断言。凭据走引用层，不执行任意 SQL、不读业务数据。</p>
+            </article>
+            <article class="feature" data-tone="plan">
+              <span class="index">v0.24</span>
+              <h3>中间件<span class="tag">规划中</span></h3>
+              <p>Elasticsearch / Nacos / Consul（HTTP 健康端点）先行，Kafka 与 AMQP 做握手级检测。不消费消息、不做管理写操作。</p>
+            </article>
+            <article class="feature" data-tone="plan">
+              <span class="index">v0.25</span>
+              <h3>容器 / K8s<span class="tag">规划中</span></h3>
+              <p>kubelet 与 API Server 只读采集：NotReady 节点数、Pod 重启增量、资源用量断言。不做 exec / logs 流与任何写操作。</p>
+            </article>
+            <article class="feature" data-tone="plan">
+              <span class="index">v0.26</span>
+              <h3>AIoT<span class="tag">规划中</span></h3>
+              <p>MQTT（含保留消息与遗嘱检测）、Modbus TCP 只读功能码、CoAP。不下发指令、不做固件 OTA、不控制设备。</p>
+            </article>
+          </div>
+
+          <div class="phase-list">
+            <div class="phase">
+              <b>PHASE A</b>
+              <p>v0.11–v0.17 内核：单实例锁、<code>/healthz</code> <code>/readyz</code> <code>/metrics</code>、探测注册表与 <code>domain</code> 维度、声明式断言层、<code>secret_ref</code> 凭据作用域、<code>scope</code> 授权范围、SQLite 后端、只读分享令牌与告警 Provider 矩阵。<strong>不新增任何监控域</strong>，只做“让多域成为可能”的事。</p>
+            </div>
+            <div class="phase">
+              <b>PHASE B</b>
+              <p>v0.20–v0.26 逐域落地，每域一个版本、只交付有界的首个切片，排序依据是复用度 → 刚需程度 → 前置依赖。</p>
+            </div>
+            <div class="phase">
+              <b>PHASE C</b>
+              <p>v0.30+ 综合化，按需启动：多实例只读聚合、依赖与拓扑视图、SLO 与错误预算。不做中心写控与数据回传。</p>
+            </div>
+          </div>
+
+          <p style="margin-top: 24px; color: var(--muted); font-size: 13px;">
+            有界原则不因扩展而让步：单实例仍限 200 项检查、采样间隔下限 10 s。
+            需要更大规模说明要多实例分工，而不是放宽上限。
+          </p>
         </section>
       </div>
 
       <footer class="wrap">
-        <span>SENTINEL v0.4.0 · MIT LICENSE</span>
+        <span>SENTINEL v0.11.0 · MIT LICENSE</span>
         <span>Python standard library · no build chain</span>
         <a href="https://github.com/CiallorZ/ops-health-dashboard">github.com/CiallorZ/ops-health-dashboard ↗</a>
       </footer>

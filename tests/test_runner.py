@@ -1,7 +1,9 @@
 import threading
 import time
 import unittest
+from datetime import datetime, timezone
 from tempfile import TemporaryDirectory
+from unittest import mock
 
 from monitor.checks import CheckResult, isoformat, utc_now
 from monitor.config import CheckConfig, DashboardConfig, Thresholds
@@ -49,6 +51,19 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(first["summary"]["ok"], 2)
         self.assertEqual(len(second["history"]), 2)
         self.assertEqual(second["history"][-1]["run_id"], second["run_id"])
+        self.assertEqual(
+            second["history"][-1]["checks"],
+            [
+                {"id": "a", "status": "ok", "latency_ms": 12.5},
+                {"id": "b", "status": "ok", "latency_ms": 12.5},
+            ],
+        )
+        self.assertEqual(second["check_history"]["checks"]["a"]["samples"], 2)
+        self.assertEqual(
+            second["check_history"]["checks"]["a"]["availability_percent"],
+            100.0,
+        )
+        self.assertNotIn("target", second["history"][-1]["checks"][0])
 
     def test_cache_reuses_snapshot(self):
         with TemporaryDirectory() as directory:
@@ -171,6 +186,192 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(result["status"], "fail")
         self.assertEqual(result["metrics"]["attempts"], 3)
         self.assertFalse(result["metrics"]["recovered_after_retry"])
+
+    def test_check_history_tracks_recovery_transition(self):
+        calls = 0
+
+        def changing_check(check, thresholds):
+            nonlocal calls
+            calls += 1
+            result = fake_check(check, thresholds)
+            result.status = "fail" if calls == 1 else "ok"
+            return result
+
+        config = DashboardConfig(
+            version=1,
+            thresholds=Thresholds(),
+            checks=(CheckConfig(id="api", name="API", type="ping", target="127.0.0.1"),),
+        )
+        with TemporaryDirectory() as directory:
+            runner = CheckRunnerService(
+                config,
+                HistoryStore(directory),
+                cache_seconds=0,
+                check_runner=changing_check,
+            )
+            first = runner.get_snapshot(force=True)
+            second = runner.get_snapshot(force=True)
+        self.assertEqual(first["check_history"]["checks"]["api"]["samples"], 1)
+        self.assertEqual(second["check_history"]["checks"]["api"]["samples"], 2)
+        self.assertEqual(second["check_history"]["events"][0]["from"], "fail")
+        self.assertEqual(second["check_history"]["events"][0]["to"], "ok")
+
+    def test_alert_dispatcher_receives_failure_and_recovery_transitions(self):
+        statuses = iter(("fail", "ok", "ok", "fail"))
+
+        class RecordingDispatcher:
+            def __init__(self):
+                self.events = []
+
+            def notify_transition(self, check, previous, _summary, **_kwargs):
+                self.events.append((check.status, previous))
+
+            def status(self, **_kwargs):
+                return {"configured": True, "recent": []}
+
+        def changing_check(check, thresholds):
+            value = next(statuses)
+            item = fake_check(check, thresholds)
+            item.status = value
+            return item
+
+        dispatcher = RecordingDispatcher()
+        config = DashboardConfig(
+            version=1,
+            thresholds=Thresholds(),
+            checks=(CheckConfig(id="api", name="API", type="ping", target="127.0.0.1"),),
+        )
+        with TemporaryDirectory() as directory:
+            runner = CheckRunnerService(
+                config,
+                HistoryStore(directory),
+                cache_seconds=0,
+                check_runner=changing_check,
+                alert_dispatcher=dispatcher,
+            )
+            for _ in range(4):
+                runner.get_snapshot(force=True)
+
+        self.assertEqual(
+            dispatcher.events,
+            [("fail", None), ("ok", "fail"), ("fail", "ok")],
+        )
+
+
+class TrendIntegrationTests(unittest.TestCase):
+    def test_snapshot_can_include_bounded_trends(self):
+        config = DashboardConfig(
+            version=1,
+            thresholds=Thresholds(),
+            checks=(CheckConfig(id="api", name="API", type="ping", target="127.0.0.1"),),
+        )
+        with TemporaryDirectory() as directory:
+            with mock.patch(
+                "monitor.runner._utc_now",
+                return_value=datetime(2026, 10, 21, tzinfo=timezone.utc),
+            ):
+                store = HistoryStore(directory)
+                store.append(
+                    {
+                        "run_id": "run-1",
+                        "generated_at": "2026-10-20T23:59:59Z",
+                        "checks": [{"id": "api", "status": "fail", "latency_ms": None}],
+                    }
+                )
+                runner = CheckRunnerService(
+                    config,
+                    store,
+                    cache_seconds=60,
+                    check_runner=fake_check,
+                )
+                without_trends = runner.get_snapshot(force=True)
+                with_trends = runner.get_snapshot(trend_days=7)
+
+        self.assertNotIn("trends", without_trends)
+        trends = with_trends["trends"]
+        self.assertEqual(trends["days"], 7)
+        self.assertEqual(trends["days_with_data"], 2)
+        self.assertEqual(trends["daily"]["2026-10-21"]["samples"], 1)
+        self.assertEqual(trends["daily"]["2026-10-20"]["availability_percent"], 0.0)
+        self.assertIsNone(trends["daily"]["2026-10-20"]["p50_latency_ms"])
+
+    def test_trend_endpoint_route_does_not_reuse_stale_history(self):
+        config = DashboardConfig(
+            version=1,
+            thresholds=Thresholds(),
+            checks=(CheckConfig(id="api", name="API", type="ping", target="127.0.0.1"),),
+        )
+        with TemporaryDirectory() as directory:
+            with mock.patch(
+                "monitor.runner._utc_now",
+                return_value=datetime(2026, 10, 21, tzinfo=timezone.utc),
+            ):
+                store = HistoryStore(directory)
+                runner = CheckRunnerService(
+                    config,
+                    store,
+                    cache_seconds=60,
+                    check_runner=fake_check,
+                )
+                runner.get_snapshot(force=True)
+                store.append(
+                    {
+                        "run_id": "injected",
+                        "generated_at": "2026-10-19T00:00:00Z",
+                        "checks": [{"id": "api", "status": "warn", "latency_ms": 30.0}],
+                    }
+                )
+                trends = runner.get_trends(days=30)
+
+        self.assertEqual(trends["days_with_data"], 2)
+        self.assertEqual(list(trends["daily"]), ["2026-10-21", "2026-10-19"])
+
+    def test_metrics_payload_uses_only_allowed_labels(self):
+        config = DashboardConfig(
+            version=1,
+            thresholds=Thresholds(),
+            checks=(
+                CheckConfig(id="a", name="A", type="ping", target="127.0.0.1"),
+                CheckConfig(id="b", name="B", type="ping", target="127.0.0.1"),
+            ),
+        )
+        with TemporaryDirectory() as directory:
+            runner = CheckRunnerService(
+                config,
+                HistoryStore(directory),
+                cache_seconds=0,
+                check_runner=fake_check,
+            )
+            runner.get_snapshot(force=True)
+            payload = runner.metrics_payload()
+        lines = payload.splitlines()
+        self.assertIn('sentinel_check_up{domain="未分组",id="a"} 1', lines)
+        self.assertIn('sentinel_check_up{domain="未分组",id="b"} 1', lines)
+        self.assertNotIn("type=", payload)
+        up_lines = [line for line in lines if line.startswith("sentinel_check_up{")]
+        self.assertEqual(len(up_lines), 2)
+        history_lines = [line for line in lines if line.startswith("sentinel_history_")]
+        self.assertEqual(len(history_lines), 5)
+        self.assertIn("sentinel_history_truncated 0", lines)
+
+    def test_metrics_payload_without_cached_snapshot(self):
+        with TemporaryDirectory() as directory:
+            runner = CheckRunnerService(
+                DashboardConfig(
+                    version=1,
+                    thresholds=Thresholds(),
+                    checks=(
+                        CheckConfig(id="a", name="A", type="ping", target="127.0.0.1"),
+                        CheckConfig(id="b", name="B", type="ping", target="127.0.0.1"),
+                    ),
+                ),
+                HistoryStore(directory),
+                cache_seconds=0,
+                check_runner=fake_check,
+            )
+            payload = runner.metrics_payload()
+        self.assertIn("sentinel_history_bytes ", payload)
+        self.assertNotIn("sentinel_check_up{", payload)
 
 
 if __name__ == "__main__":

@@ -29,6 +29,8 @@ class ConfigTests(unittest.TestCase):
         self.assertTrue(check.verify_tls)
         self.assertEqual(check.group, "未分组")
         self.assertEqual(config.thresholds.tls_warn_days, 30)
+        self.assertEqual(config.monitor_interval_seconds, 60)
+        self.assertFalse(config.notifications.configured)
 
     def test_group_is_normalized_and_exposed(self):
         raw = json.loads(json.dumps(MINIMAL))
@@ -57,10 +59,71 @@ class ConfigTests(unittest.TestCase):
             with self.assertRaisesRegex(ConfigError, message):
                 parse_config(raw)
 
+    def test_notifications_are_validated_and_redacted(self):
+        raw = json.loads(json.dumps(MINIMAL))
+        raw["monitor_interval_seconds"] = 30
+        raw["notifications"] = {
+            "webhook_url": "https://hooks.example.test/path?token=secret",
+            "signing_secret_env": "SENTINEL_WEBHOOK_SECRET",
+            "cooldown_seconds": 120,
+            "timeout_seconds": 3,
+            "retry_attempts": 2,
+        }
+        config = parse_config(raw)
+        public = config.public_dict()
+
+        self.assertEqual(config.monitor_interval_seconds, 30)
+        self.assertTrue(config.notifications.configured)
+        self.assertTrue(public["notifications"]["configured"])
+        self.assertEqual(
+            public["notifications"]["signing_secret_env"],
+            "SENTINEL_WEBHOOK_SECRET",
+        )
+        self.assertNotIn("hooks.example.test", json.dumps(public))
+        self.assertNotIn("token=secret", json.dumps(public))
+
+    def test_notification_url_sources_are_mutually_exclusive(self):
+        raw = json.loads(json.dumps(MINIMAL))
+        raw["notifications"] = {
+            "webhook_url": "http://127.0.0.1:18081/hook",
+            "webhook_url_env": "SENTINEL_WEBHOOK_URL",
+        }
+        with self.assertRaisesRegex(ConfigError, "not both"):
+            parse_config(raw)
+
+    def test_notification_url_rejects_credentials(self):
+        raw = json.loads(json.dumps(MINIMAL))
+        raw["notifications"] = {"webhook_url": "https://user:secret@example.test/"}
+        with self.assertRaisesRegex(ConfigError, "credentials"):
+            parse_config(raw)
+
+    def test_monitor_interval_is_bounded(self):
+        for value in (9, 3601):
+            raw = json.loads(json.dumps(MINIMAL))
+            raw["monitor_interval_seconds"] = value
+            with self.assertRaisesRegex(ConfigError, "between"):
+                parse_config(raw)
+
     def test_rejects_duplicate_ids(self):
         raw = json.loads(json.dumps(MINIMAL))
         raw["checks"].append(raw["checks"][0])
         with self.assertRaisesRegex(ConfigError, "unique"):
+            parse_config(raw)
+
+    def test_rejects_excessive_check_count(self):
+        raw = {
+            "version": 1,
+            "checks": [
+                {
+                    "id": f"check-{index}",
+                    "name": f"Check {index}",
+                    "type": "ping",
+                    "target": "127.0.0.1",
+                }
+                for index in range(201)
+            ],
+        }
+        with self.assertRaisesRegex(ConfigError, "at most 200"):
             parse_config(raw)
 
     def test_rejects_credentials_in_http_url(self):

@@ -46,7 +46,9 @@
             <div class="hero-meta">
               <span id="last-updated">等待首次采样</span>
               <span class="meta-divider" aria-hidden="true"></span>
-              <span>每 30 秒自动刷新</span>
+              <span>页面每 10 秒同步</span>
+              <span class="meta-divider" aria-hidden="true"></span>
+              <span id="monitor-interval">后台每 60 秒采样</span>
               <span class="meta-divider" aria-hidden="true"></span>
               <span id="run-duration">-- ms</span>
             </div>
@@ -109,15 +111,34 @@
 
         <div class="workspace-grid">
           <section class="panel checks-panel" aria-labelledby="checks-title">
-            <div class="panel-heading">
+            <div class="panel-heading checks-heading">
               <div>
                 <p class="panel-kicker">LIVE CHECKS</p>
-                <h2 id="checks-title">资产检测</h2>
+                <div class="title-line">
+                  <h2 id="checks-title">资产检测</h2>
+                  <span class="checks-count" id="checks-count">载入中</span>
+                </div>
               </div>
+            </div>
+            <div class="check-toolbar">
+              <label class="search-field" for="check-search">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="11" cy="11" r="6.5"></circle>
+                  <path d="m16 16 4 4"></path>
+                </svg>
+                <input
+                  id="check-search"
+                  type="search"
+                  placeholder="搜索名称、目标、分组或标签"
+                  autocomplete="off"
+                  spellcheck="false"
+                >
+              </label>
               <div class="filter-bar" role="group" aria-label="筛选检测结果">
                 <button class="filter is-active" type="button" data-filter="all">全部</button>
                 <button class="filter" type="button" data-filter="fail">异常</button>
                 <button class="filter" type="button" data-filter="warn">预警</button>
+                <button class="filter" type="button" data-filter="ok">正常</button>
               </div>
             </div>
             <div class="checks-list" id="checks-list" aria-live="polite">
@@ -145,34 +166,124 @@
               </div>
             </section>
 
+            <section class="panel long-trend-panel" id="long-trend-panel" aria-labelledby="long-trend-title">
+              <div class="panel-heading compact">
+                <div>
+                  <p class="panel-kicker">LONG-TERM / 7D</p>
+                  <h2 id="long-trend-title">长期趋势</h2>
+                </div>
+                <span class="mini-legend trend-source" id="trend-source">读取中</span>
+              </div>
+              <dl class="trend-summary">
+                <div><dt>统计天数</dt><dd id="trend-days">--</dd></div>
+                <div><dt>有数据天数</dt><dd id="trend-days-with-data">--</dd></div>
+                <div><dt>p50 / p95</dt><dd id="trend-percentiles">--</dd></div>
+              </dl>
+              <div class="long-trend-list" id="long-trend-list" aria-live="polite">
+                <div class="trend-empty">正在读取按天聚合</div>
+              </div>
+              <p class="config-note">按 UTC 日期聚合，只统计真实采样；没有采样的日期不会出现，也不补造。</p>
+            </section>
+
+            <section class="panel transitions-panel" aria-labelledby="transitions-title">
+              <div class="panel-heading compact">
+                <div>
+                  <p class="panel-kicker">IMPORTANT EVENTS</p>
+                  <h2 id="transitions-title">最近状态变化</h2>
+                </div>
+                <span class="mini-legend"><i class="legend-warn"></i> 仅真实采样</span>
+              </div>
+              <div class="transition-list" id="transition-list" aria-live="polite">
+                <div class="transition-empty">正在读取历史状态</div>
+              </div>
+            </section>
+
+            <section class="panel certificate-panel" id="certificate-panel" aria-labelledby="certificate-title">
+              <div class="panel-heading compact">
+                <div>
+                  <p class="panel-kicker">CERTIFICATES</p>
+                  <h2 id="certificate-title">证书到期日历</h2>
+                </div>
+                <span class="mini-legend" id="certificate-window">读取中</span>
+              </div>
+              <dl class="certificate-summary">
+                <div><dt>跟踪证书</dt><dd id="certificate-tracked">--</dd></div>
+                <div><dt>最近到期</dt><dd id="certificate-nearest">--</dd></div>
+                <div><dt>预警 / 紧急</dt><dd id="certificate-counts">--</dd></div>
+              </dl>
+              <div class="certificate-list" id="certificate-list" aria-live="polite">
+                <div class="certificate-empty">正在读取证书证据</div>
+              </div>
+              <p class="config-note">只统计真实 TLS 握手返回的到期时间；握手失败或没有证书指标的检查不会出现，也不推测。</p>
+            </section>
+
+            <section class="panel maintenance-panel" id="maintenance-panel" aria-labelledby="maintenance-title">
+              <div class="panel-heading compact">
+                <div>
+                  <p class="panel-kicker">MAINTENANCE</p>
+                  <h2 id="maintenance-title">维护窗口</h2>
+                </div>
+                <span class="mini-legend" id="maintenance-state" data-state="idle">读取中</span>
+              </div>
+              <div class="maintenance-list" id="maintenance-list" aria-live="polite">
+                <div class="maintenance-empty">正在读取维护计划</div>
+              </div>
+              <p class="config-note">维护期内仍然真实采样与展示状态，只抑制 Webhook 告警；账本会写明抑制原因。</p>
+            </section>
+
+            <section class="panel automation-panel" id="automation-panel" aria-labelledby="automation-title">
+              <div class="panel-heading compact">
+                <div>
+                  <p class="panel-kicker">AUTOMATION</p>
+                  <h2 id="automation-title">持续监测与告警</h2>
+                </div>
+                <span class="automation-state" id="scheduler-state" data-state="loading">读取中</span>
+              </div>
+              <dl class="automation-list">
+                <div><dt>后台采样</dt><dd id="scheduler-interval">--</dd></div>
+                <div><dt>上次完成</dt><dd id="scheduler-last">--</dd></div>
+                <div><dt>下次采样</dt><dd id="scheduler-next">--</dd></div>
+              </dl>
+              <div class="alert-subheading">
+                <span>Webhook 投递</span>
+                <span id="alert-config-state">读取中</span>
+              </div>
+              <div class="alert-list" id="alert-list" aria-live="polite">
+                <div class="alert-empty">正在读取告警账本</div>
+              </div>
+            </section>
+
             <section class="panel config-panel" aria-labelledby="config-title">
               <div class="panel-heading compact">
                 <div>
                   <p class="panel-kicker">POLICY</p>
                   <h2 id="config-title">当前阈值</h2>
                 </div>
+                <span class="mini-legend" id="retention-state">读取中</span>
               </div>
               <dl class="threshold-list">
                 <div><dt>延迟预警</dt><dd id="threshold-latency-warn">--</dd></div>
                 <div><dt>延迟失败</dt><dd id="threshold-latency-fail">--</dd></div>
                 <div><dt>证书预警</dt><dd id="threshold-tls-warn">--</dd></div>
                 <div><dt>证书失败</dt><dd id="threshold-tls-fail">--</dd></div>
+                <div><dt>历史占用</dt><dd id="retention-usage">--</dd></div>
+                <div><dt>历史归档</dt><dd id="retention-archives">--</dd></div>
               </dl>
-              <p class="config-note">修改 <code>checks.json</code> 后重启服务即可应用。</p>
+              <p class="config-note" id="retention-note">修改 <code>checks.json</code> 后重启服务即可应用。</p>
             </section>
 
             <section class="panel security-note" aria-labelledby="security-title">
               <span class="scan-line" aria-hidden="true"></span>
               <p class="panel-kicker">LOCAL ONLY</p>
               <h2 id="security-title">默认只监听回环地址</h2>
-              <p>没有内置账号体系，也没有把检测配置发送到外部。暴露到局域网前，请加反向代理与访问控制。</p>
+              <p>没有内置账号体系，默认不向外部发送数据；启用告警时只向显式配置的 Webhook 投递脱敏事件。暴露到局域网前，请加反向代理与访问控制。</p>
             </section>
           </aside>
         </div>
       </main>
 
       <footer>
-        <span>SENTINEL <b>v0.4.0</b></span>
+        <span>SENTINEL <b>v0.11.0</b></span>
         <span>Zero-dependency / Python standard library</span>
         <span id="footer-state">本地数据 · 不采集凭据</span>
       </footer>

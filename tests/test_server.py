@@ -21,6 +21,10 @@ class ServerTests(unittest.TestCase):
             json.dumps(
                 {
                     "version": 1,
+                    "monitor_interval_seconds": 60,
+                    "notifications": {
+                        "webhook_url": "http://127.0.0.1:9/hook?token=server-secret"
+                    },
                     "checks": [
                         {
                             "id": "self",
@@ -67,6 +71,121 @@ class ServerTests(unittest.TestCase):
         status, _, body = self.get_json("/api/config")
         self.assertEqual(status, 200)
         self.assertEqual(body["checks"][0]["id"], "self")
+        self.assertTrue(body["notifications"]["configured"])
+        self.assertNotIn("server-secret", json.dumps(body))
+        self.assertNotIn("/hook", json.dumps(body))
+
+    def test_alerts_endpoint_is_redacted_and_bounded(self):
+        status, _, body = self.get_json("/api/alerts?limit=999")
+        self.assertEqual(status, 200)
+        self.assertTrue(body["configured"])
+        self.assertIsInstance(body["recent"], list)
+        self.assertNotIn("server-secret", json.dumps(body))
+        self.assertNotIn("/hook", json.dumps(body))
+
+    def test_trends_endpoint_defaults_and_clamps_days(self):
+        self.server.runner.history.append(
+            {
+                "run_id": "run-injected",
+                "generated_at": "2026-10-19T00:00:00Z",
+                "checks": [{"id": "self", "status": "fail", "latency_ms": None}],
+            }
+        )
+
+        status, _, body = self.get_json("/api/trends")
+        self.assertEqual(status, 200)
+        self.assertEqual(body["days"], 7)
+        self.assertEqual(body["days_with_data"], 2)
+        self.assertTrue(body["generated_from_utc_days"])
+        injected_day = body["daily"]["2026-10-19"]
+        self.assertEqual(injected_day["samples"], 1)
+        self.assertEqual(injected_day["fail"], 1)
+        self.assertEqual(injected_day["availability_percent"], 0.0)
+        self.assertIsNone(injected_day["p50_latency_ms"])
+        self.assertEqual(body["checks"]["self"]["totals"]["fail"], 1)
+
+        status, _, clamped = self.get_json("/api/trends?days=999")
+        self.assertEqual(status, 200)
+        self.assertEqual(clamped["days"], 30)
+
+        status, _, invalid = self.get_json("/api/trends?days=soon")
+        self.assertEqual(status, 200)
+        self.assertEqual(invalid["days"], 7)
+
+    def test_status_exposes_background_scheduler_state(self):
+        status, _, body = self.get_json("/api/status?force=1")
+        self.assertEqual(status, 200)
+        self.assertIn("automation", body)
+        self.assertIn("scheduler", body["automation"])
+        self.assertEqual(
+            body["automation"]["scheduler"]["interval_seconds"], 60
+        )
+        self.assertFalse(body["automation"]["scheduler"]["running"])
+
+    def test_certificates_endpoint_reports_bounded_calendar(self):
+        status, _, body = self.get_json("/api/certificates")
+        self.assertEqual(status, 200)
+        self.assertEqual(body["tracked"], 0)
+        self.assertEqual(body["upcoming"], [])
+        self.assertEqual(body["counts"], {
+            "expired": 0,
+            "critical": 0,
+            "warning": 0,
+            "healthy": 0,
+        })
+        self.assertEqual(body["thresholds"]["tls_warn_days"], 30)
+        self.assertEqual(body["thresholds"]["tls_fail_days"], 7)
+
+    def test_health_and_status_expose_history_retention_bounds(self):
+        _, _, health = self.get_json("/api/health")
+        retention = health["retention"]
+        self.assertGreater(retention["max_file_bytes"], 0)
+        self.assertGreaterEqual(retention["max_archive_files"], 0)
+        self.assertGreater(retention["max_total_bytes"], retention["max_file_bytes"])
+        self.assertIsInstance(retention["archives"], list)
+        self.assertFalse(retention["truncated"])
+
+        _, _, status = self.get_json("/api/status?force=1")
+        status_retention = status["automation"]["retention"]
+        self.assertEqual(
+            status_retention["max_file_bytes"], retention["max_file_bytes"]
+        )
+        self.assertGreaterEqual(status_retention["current_bytes"], retention["current_bytes"])
+        self.assertLessEqual(
+            status_retention["total_bytes"], status_retention["max_total_bytes"]
+        )
+
+    def test_certificates_endpoint_hides_metrics_from_non_tls_checks(self):
+        self.server.runner.get_snapshot = lambda **_kwargs: {
+            "generated_at": "2026-10-21T00:00:00Z",
+            "summary": {},
+            "checks": [
+                {
+                    "id": "plain-http",
+                    "name": "Plain HTTP",
+                    "type": "http",
+                    "target": "http://127.0.0.1/",
+                    "status": "ok",
+                    "metrics": {"status_code": 200},
+                }
+            ],
+        }
+        status, _, body = self.get_json("/api/certificates")
+        self.assertEqual(status, 200)
+        self.assertEqual(body["tracked"], 0)
+
+    def test_maintenance_endpoint_reports_no_windows_by_default(self):
+        status, _, body = self.get_json("/api/maintenance")
+        self.assertEqual(status, 200)
+        self.assertFalse(body["configured"])
+        self.assertEqual(body["active"], [])
+        self.assertEqual(body["upcoming"], [])
+        self.assertEqual(body["active_check_ids"], [])
+
+        status, _, snapshot = self.get_json("/api/status?force=1")
+        self.assertEqual(status, 200)
+        self.assertIn("maintenance", snapshot["automation"])
+        self.assertIn("retention", snapshot["automation"])
 
     def test_unknown_api_is_json_404(self):
         with self.assertRaises(urllib.error.HTTPError) as raised:
@@ -127,6 +246,106 @@ class ServerTests(unittest.TestCase):
         self.assertNotIn("secret", body)
 
 
+    def test_healthz_reports_service_alive(self):
+        status, _, body = self.get_json("/healthz")
+        self.assertEqual(status, 200)
+        self.assertEqual(body["status"], "ok")
+        self.assertEqual(body["version"], __version__)
+        self.assertIn("uptime_seconds", body)
+
+    def test_readyz_reports_ready_when_healthy(self):
+        self.server.start_background_monitor()
+        self.server.runner.get_snapshot(force=True)
+        status, _, body = self.get_json("/readyz")
+        self.assertEqual(status, 200)
+        self.assertEqual(body["status"], "ready")
+        self.assertEqual(body["version"], __version__)
+
+    def test_metrics_returns_prometheus_text(self):
+        self.server.runner.get_snapshot(force=True)
+        status, headers, body = self.get_text("/metrics")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["Content-Type"], "text/plain; version=0.0.4; charset=utf-8")
+        self.assertEqual(headers.get("Cache-Control"), "no-store")
+        self.assertIn("sentinel_check_up{", body)
+        self.assertIn("sentinel_history_bytes ", body)
+        self.assertNotIn("type=", body)
+
+    def test_metrics_only_reports_allowed_labels(self):
+        self.server.runner.get_snapshot(force=True)
+        self.server.runner._cached = {
+            "generated_at": "2026-10-18T12:00:00Z",
+            "summary": {"health": "critical", "total": 1, "ok": 0, "warn": 0, "fail": 1},
+            "checks": [{
+                "id": "api",
+                "name": "API",
+                "group": "核心 服务",
+                "type": "ping",
+                "target": "https://example.test/health",
+                "status": "fail",
+                "summary": "down",
+                "detail": "no response",
+                "latency_ms": 42.5,
+            }],
+        }
+        _, _, body = self.get_text("/metrics")
+        self.assertIn('domain=\"核心 服务\",id=\"api\"', body)
+        self.assertNotIn("type=", body)
+
+    def get_text(self, path):
+        with urllib.request.urlopen(self.base + path, timeout=5) as response:
+            return response.status, response.headers, response.read().decode("utf-8")
+
 if __name__ == "__main__":
     unittest.main()
+    def test_healthz_reports_service_alive(self):
+        status, _, body = self.get_json("/healthz")
+        self.assertEqual(status, 200)
+        self.assertEqual(body["status"], "ok")
+        self.assertEqual(body["version"], __version__)
+        self.assertIn("uptime_seconds", body)
+
+    def test_readyz_reports_ready_when_healthy(self):
+        status, _, body = self.get_json("/readyz")
+        self.assertEqual(status, 200)
+        self.assertEqual(body["status"], "ready")
+        self.assertEqual(body["version"], __version__)
+
+    def test_metrics_returns_prometheus_text(self):
+        self.server.runner.get_snapshot(force=True)
+        status, headers, body = self.get_text("/metrics")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["Content-Type"], "text/plain; version=0.0.4; charset=utf-8")
+        self.assertEqual(headers.get("Cache-Control"), "no-store")
+        self.assertIn("sentinel_check_up{", body)
+        self.assertIn("sentinel_history_bytes ", body)
+        self.assertNotIn("type=", body)
+
+    def test_metrics_only_reports_allowed_labels(self):
+        self.server.runner.get_snapshot = lambda **_kwargs: {
+            "generated_at": "2026-10-18T12:00:00Z",
+            "summary": {"health": "critical", "total": 1, "ok": 0, "warn": 0, "fail": 1},
+            "checks": [{
+                "id": "api",
+                "name": "API",
+                "group": "核心 服务",
+                "type": "ping",
+                "target": "https://example.test/health",
+                "status": "fail",
+                "summary": "down",
+                "detail": "no response",
+                "latency_ms": 42.5,
+            }],
+        }
+        _, _, body = self.get_text("/metrics")
+        self.assertIn('domain="核心 服务",id="api"', body)
+        self.assertNotIn("type=", body)
+
+    def get_text(self, path):
+        with urllib.request.urlopen(self.base + path, timeout=5) as response:
+            return response.status, response.headers, response.read().decode("utf-8")
+
+    def get_json(self, path):
+        with urllib.request.urlopen(self.base + path, timeout=5) as response:
+            return response.status, response.headers, json.loads(response.read())
 

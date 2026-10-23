@@ -12,12 +12,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 class DemoHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     counts: dict[str, int] = {}
+    webhook_events: list[dict[str, object]] = []
     lock = threading.Lock()
 
     def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
         path = self.path.split("?", 1)[0]
         if path == "/slow":
             time.sleep(1.2)
+        if path == "/timeout":
+            time.sleep(2.2)
         if path == "/flaky":
             with self.lock:
                 count = self.counts.get(path, 0) + 1
@@ -28,13 +31,34 @@ class DemoHandler(BaseHTTPRequestHandler):
                 return
         self._send(200)
 
+    def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+        path = self.path.split("?", 1)[0]
+        if path != "/webhook":
+            self.send_error(404)
+            return
+        length = int(self.headers.get("Content-Length", "0"))
+        body = self.rfile.read(length)
+        with self.lock:
+            self.webhook_events.append(
+                {
+                    "event": self.headers.get("X-Sentinel-Event", ""),
+                    "body": body.decode("utf-8", errors="replace"),
+                }
+            )
+        self.send_response(204)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def _send(self, status: int) -> None:
         body = b'{"ok":true}' if status == 200 else b'{"ok":false}'
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.wfile.write(body)
+        except OSError:
+            return
 
     def log_message(self, fmt: str, *args: object) -> None:
         return

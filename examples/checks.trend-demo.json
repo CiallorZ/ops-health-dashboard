@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "monitor_interval_seconds": 10,
+  "notifications": {
+    "webhook_url": "http://127.0.0.1:18081/webhook",
+    "cooldown_seconds": 1,
+    "timeout_seconds": 1,
+    "retry_attempts": 1
+  },
+  "checks": [
+    {
+      "id": "dashboard-api",
+      "name": "控制面 API",
+      "group": "本机服务",
+      "type": "http",
+      "target": "http://127.0.0.1:18080/api/health",
+      "timeout_seconds": 2,
+      "tags": [
+        "self"
+      ]
+    },
+    {
+      "id": "checkout-api",
+      "name": "结算 API",
+      "group": "核心业务",
+      "type": "http",
+      "target": "http://127.0.0.1:18081/ok",
+      "timeout_seconds": 2,
+      "retry_attempts": 1,
+      "tags": [
+        "api"
+      ]
+    },
+    {
+      "id": "catalog-api",
+      "name": "商品目录 API",
+      "group": "核心业务",
+      "type": "http",
+      "target": "http://127.0.0.1:18081/slow",
+      "timeout_seconds": 3,
+      "tags": [
+        "api",
+        "latency"
+      ]
+    },
+    {
+      "id": "timeout-api",
+      "name": "超时探测",
+      "group": "核心业务",
+      "type": "http",
+      "target": "http://127.0.0.1:18081/timeout",
+      "timeout_seconds": 0.8,
+      "tags": [
+        "api",
+        "timeout"
+      ]
+    },
+    {
+      "id": "flaky-api",
+      "name": "对账 API",
+      "group": "核心业务",
+      "type": "http",
+      "target": "http://127.0.0.1:18081/flaky",
+      "timeout_seconds": 2,
+      "retry_attempts": 2,
+      "tags": [
+        "api",
+        "retry"
+      ]
+    },
+    {
+      "id": "legacy-port",
+      "name": "旧版任务端口",
+      "group": "遗留系统",
+      "type": "tcp",
+      "target": "127.0.0.1",
+      "port": 18082,
+      "timeout_seconds": 1,
+      "tags": [
+        "tcp"
+      ]
+    },
+    {
+      "id": "loopback-ping",
+      "name": "本机回环 ICMP",
+      "group": "本机服务",
+      "type": "ping",
+      "target": "127.0.0.1",
+      "timeout_seconds": 3,
+      "tags": [
+        "self"
+      ]
+    }
+  ]
+}

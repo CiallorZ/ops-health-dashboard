@@ -8,11 +8,20 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from datetime import datetime, timezone
-from typing import Callable
+from typing import Any, Callable
 
+from .alerts import AlertDispatcher
 from .checks import CheckResult, run_check
+from .certificates import summarize_certificates
 from .config import CheckConfig, DashboardConfig, Thresholds
-from .history import HistoryStore
+from .history import (
+    HistoryStore,
+    MAX_TREND_ITEMS,
+    MAX_TREND_DAYS,
+    summarize_check_history,
+    summarize_history_trends,
+)
+from .maintenance import active_window_for, summarize_maintenance
 
 CheckRunner = Callable[[CheckConfig, Thresholds], CheckResult]
 
@@ -34,22 +43,31 @@ class CheckRunnerService:
         cache_seconds: float = 8.0,
         max_workers: int = 8,
         check_runner: CheckRunner = run_check,
+        alert_dispatcher: AlertDispatcher | None = None,
     ) -> None:
         self.config = config
         self.history = history
         self.cache_seconds = cache_seconds
         self.max_workers = max_workers
         self.check_runner = check_runner
+        self.alert_dispatcher = alert_dispatcher
         self._lock = threading.Lock()
         self._cached: dict | None = None
         self._cached_at = 0.0
+        self._last_statuses: dict[str, str] = {}
 
-    def get_snapshot(self, *, force: bool = False, history_limit: int = 40) -> dict:
+    def get_snapshot(
+        self,
+        *,
+        force: bool = False,
+        history_limit: int = 40,
+        trend_days: int | None = None,
+    ) -> dict:
         request_started = time.monotonic()
         if not force and self._cached is not None:
             age = request_started - self._cached_at
             if age < self.cache_seconds:
-                return self._with_history(self._cached, history_limit)
+                return self._with_history(self._cached, history_limit, trend_days)
 
         with self._lock:
             if self._cached is not None:
@@ -57,9 +75,9 @@ class CheckRunnerService:
                 # A snapshot created while this request waited on the lock is
                 # already fresh enough to satisfy it, even a forced refresh.
                 if self._cached_at >= request_started:
-                    return self._with_history(self._cached, history_limit)
+                    return self._with_history(self._cached, history_limit, trend_days)
                 if not force and age < self.cache_seconds:
-                    return self._with_history(self._cached, history_limit)
+                    return self._with_history(self._cached, history_limit, trend_days)
 
             started = time.perf_counter()
             run_at = _iso(_utc_now())
@@ -67,6 +85,7 @@ class CheckRunnerService:
             results = self._execute(enabled)
             duration_ms = (time.perf_counter() - started) * 1000
             summary = self._summarize(results)
+            self._dispatch_transitions(results, summary)
             snapshot = {
                 "run_id": uuid.uuid4().hex[:12],
                 "generated_at": run_at,
@@ -82,9 +101,110 @@ class CheckRunnerService:
                     "generated_at": run_at,
                     "duration_ms": snapshot["duration_ms"],
                     **summary,
+                    "checks": [
+                        {
+                            "id": result.id,
+                            "status": result.status,
+                            "latency_ms": (
+                                round(result.latency_ms, 1)
+                                if result.latency_ms is not None
+                                else None
+                            ),
+                        }
+                        for result in results
+                    ],
                 }
             )
-            return self._with_history(snapshot, history_limit)
+            return self._with_history(snapshot, history_limit, trend_days)
+
+    def get_trends(self, *, days: int = 7) -> dict[str, Any]:
+        """Return bounded daily rollups without triggering another check run."""
+        bounded_days = max(1, min(int(days), MAX_TREND_DAYS))
+        snapshot = self._cached if self._cached is not None else self.get_snapshot()
+        history = self.history.recent(MAX_TREND_ITEMS)
+        return summarize_history_trends(
+            history,
+            snapshot.get("checks", []),
+            days=bounded_days,
+        )
+
+    def get_certificates(self) -> dict[str, Any]:
+        """Return a bounded certificate calendar from the latest TLS evidence."""
+        snapshot = self._cached if self._cached is not None else self.get_snapshot()
+        return summarize_certificates(
+            snapshot.get("checks", []),
+            tls_warn_days=self.config.thresholds.tls_warn_days,
+            tls_fail_days=self.config.thresholds.tls_fail_days,
+        )
+
+    def get_maintenance(self) -> dict[str, Any]:
+        """Return active and upcoming windows from the current configuration."""
+        snapshot = self._cached if self._cached is not None else self.get_snapshot()
+        return summarize_maintenance(
+            self.config.maintenance_windows,
+            snapshot.get("checks", []),
+            now=_utc_now(),
+        )
+
+    def _dispatch_transitions(
+        self, results: list[CheckResult], summary: dict[str, Any]
+    ) -> None:
+        if self.alert_dispatcher is None:
+            self._last_statuses.update(
+                {result.id: result.status for result in results}
+            )
+            return
+        for result in results:
+            previous = self._last_statuses.get(result.id)
+            changed = previous is not None and previous != result.status
+            first_failure = previous is None and result.status == "fail"
+            if changed or first_failure:
+                window = active_window_for(
+                    self.config.maintenance_windows,
+                    result.id,
+                    now=_utc_now(),
+                )
+                self.alert_dispatcher.notify_transition(
+                    result,
+                    previous,
+                    summary,
+                    maintenance_name=window.name if window is not None else None,
+                )
+            self._last_statuses[result.id] = result.status
+
+    def alert_status(self, *, limit: int = 12) -> dict[str, Any]:
+        if self.alert_dispatcher is None:
+            return {
+                "configured": False,
+                "signed": False,
+                "pending": 0,
+                "recent": [],
+            }
+        return self.alert_dispatcher.status(limit=limit)
+
+    def metrics_payload(self) -> str:
+        lines = []
+        checks = (self._cached or {}).get("checks", [])
+        for check in checks:
+            domain = _label(str(check.get("group", "未分组")))
+            check_id = _label(str(check.get("id", "")))
+            labels = 'domain="' + domain + '",id="' + check_id + '"'
+            status = str(check.get("status", "unknown"))
+            up = 1 if status == "ok" else 0
+            lines.append("sentinel_check_up{" + labels + "} " + str(up))
+            for state in ("ok", "warn", "fail", "unknown"):
+                value = 1 if status == state else 0
+                lines.append('sentinel_check_status{' + labels + ',status="' + state + '"} ' + str(value))
+            latency = check.get("latency_ms")
+            if latency is not None:
+                lines.append("sentinel_check_latency_ms{" + labels + "} " + str(latency))
+        stats = self.history.stats()
+        lines.append("sentinel_history_bytes " + str(stats["current_bytes"]))
+        lines.append("sentinel_history_max_bytes " + str(stats["max_file_bytes"]))
+        lines.append("sentinel_history_loaded_lines " + str(stats["loaded_lines"]))
+        lines.append("sentinel_history_max_load_lines " + str(stats["max_load_lines"]))
+        lines.append("sentinel_history_truncated " + ("1" if stats["truncated"] else "0"))
+        return "\n".join(lines) + "\n"
 
     def _execute(self, checks: list[CheckConfig]) -> list[CheckResult]:
         if not checks:
@@ -138,9 +258,34 @@ class CheckRunnerService:
             "fail": counts["fail"],
         }
 
-    def _with_history(self, snapshot: dict, history_limit: int) -> dict:
-        return {
+    def _with_history(
+        self,
+        snapshot: dict,
+        history_limit: int,
+        trend_days: int | None = None,
+    ) -> dict:
+        history = self.history.recent(history_limit)
+        payload = {
             **snapshot,
-            "history": self.history.recent(history_limit),
+            "history": history,
+            "check_history": summarize_check_history(
+                history,
+                snapshot.get("checks", []),
+                limit=history_limit,
+            ),
         }
+        if trend_days is not None:
+            payload["trends"] = summarize_history_trends(
+                self.history.recent(MAX_TREND_ITEMS),
+                snapshot.get("checks", []),
+                days=trend_days,
+            )
+        return payload
 
+
+def _label(value: str) -> str:
+    return (
+        value.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\n", "\\n")
+    )
