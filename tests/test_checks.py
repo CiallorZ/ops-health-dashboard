@@ -6,8 +6,9 @@ from unittest.mock import MagicMock, patch
 
 from monitor import __version__
 from monitor.checks import USER_AGENT
-from monitor.checks import CheckExecutionError, _run_http, _run_tls
+from monitor.checks import PROBES, CheckExecutionError, _run_http, _run_tls, run_check
 from monitor.config import CheckConfig, Thresholds
+from monitor.config import SUPPORTED_TYPES
 
 
 class FakeResponse:
@@ -48,6 +49,37 @@ class TlsContext:
 
 
 class ChecksTests(unittest.TestCase):
+    def test_probe_registry_matches_supported_types(self):
+        # config.py owns the accepted set; the registry must never drift.
+        self.assertEqual(set(PROBES), SUPPORTED_TYPES)
+        for probe in PROBES.values():
+            self.assertTrue(callable(probe.validate))
+            self.assertTrue(callable(probe.run))
+
+    def test_registry_dispatches_each_type(self):
+        http_check = CheckConfig(
+            id="api", name="API", type="http", target="https://example.com/"
+        )
+        with patch("monitor.checks.urllib.request.urlopen", return_value=FakeResponse()):
+            self.assertEqual(PROBES["http"].run(http_check, Thresholds()).status, "ok")
+
+    def test_run_check_uses_registry_validate_before_run(self):
+        check = CheckConfig(
+            id="bad", name="Bad", type="tcp", target="example.com", port=None
+        )
+        result = run_check(check, Thresholds())
+        self.assertEqual(result.status, "fail")
+        self.assertIn("端口", result.detail)
+
+    def test_run_check_rejects_unknown_type(self):
+        check = CheckConfig(
+            id="x", name="X", type="http", target="https://example.com/"
+        )
+        object.__setattr__(check, "type", "gopher")
+        result = run_check(check, Thresholds())
+        self.assertEqual(result.status, "fail")
+        self.assertIn("不支持的检查类型", result.detail)
+
     def test_http_redirect_and_expected_status(self):
         check = CheckConfig(
             id="api",

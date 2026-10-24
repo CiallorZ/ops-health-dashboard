@@ -4,6 +4,16 @@ All notable changes are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `PROBES` registry in `monitor/checks.py`: each probe declares `validate()`
+  and `run()`, and `run_check` dispatches through the registry instead of the
+  type `if/elif` chain. Existing four probe behaviors and messages are
+  unchanged; a contract test pins the registry to `SUPPORTED_TYPES` in
+  `monitor/config.py` so the two can never drift. (ROADMAP v0.12, first slice)
+
 ## [0.11.1] - 2026-10-24
 
 ### Fixed
