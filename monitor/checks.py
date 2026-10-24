@@ -8,9 +8,10 @@ import subprocess
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import urlparse
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Callable
+from typing import Any, Callable, NamedTuple
 
 from . import __version__
 from .config import CheckConfig, Thresholds
@@ -58,48 +59,27 @@ class CheckExecutionError(RuntimeError):
     """A check failed in a way that should be shown to the operator."""
 
 
-def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+def _validate_ping(check: CheckConfig) -> None:
+    if not check.target.strip():
+        raise CheckExecutionError("ping 检查缺少目标主机")
 
 
-def isoformat(value: datetime) -> str:
-    return value.isoformat(timespec="seconds").replace("+00:00", "Z")
+def _validate_tcp(check: CheckConfig) -> None:
+    if not check.target.strip():
+        raise CheckExecutionError("TCP 检查缺少目标主机")
+    if check.port is None:
+        raise CheckExecutionError("TCP 检查必须配置端口")
 
 
-def _latency_status(
-    latency_ms: float, thresholds: Thresholds
-) -> tuple[str, str]:
-    if latency_ms >= thresholds.latency_fail_ms:
-        return "fail", "延迟超过失败阈值"
-    if latency_ms >= thresholds.latency_warn_ms:
-        return "warn", "延迟超过告警阈值"
-    return "ok", "响应正常"
+def _validate_tls(check: CheckConfig) -> None:
+    if not check.target.strip():
+        raise CheckExecutionError("TLS 检查缺少目标主机")
 
 
-def _base_result(
-    check: CheckConfig,
-    *,
-    status: str,
-    summary: str,
-    detail: str,
-    latency_ms: float | None,
-    metrics: dict[str, Any] | None = None,
-) -> CheckResult:
-    return CheckResult(
-        id=check.id,
-        name=check.name,
-        type=check.type,
-        target=check.target,
-        port=check.port,
-        status=status,
-        summary=summary,
-        detail=detail,
-        latency_ms=latency_ms,
-        checked_at=isoformat(utc_now()),
-        group=check.group,
-        tags=check.tags,
-        metrics=metrics or {},
-    )
+def _validate_http(check: CheckConfig) -> None:
+    parsed = urlparse(check.target)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise CheckExecutionError("HTTP 检查目标必须是绝对 HTTP(S) URL")
 
 
 def _run_ping(check: CheckConfig, thresholds: Thresholds) -> CheckResult:
@@ -301,15 +281,11 @@ def run_check(
 ) -> CheckResult:
     """Run one check and always return a renderable result."""
     try:
-        if check.type == "ping":
-            return _run_ping(check, thresholds)
-        if check.type == "tcp":
-            return _run_tcp(check, thresholds)
-        if check.type == "tls":
-            return _run_tls(check, thresholds)
-        if check.type == "http":
-            return _run_http(check, thresholds)
-        raise CheckExecutionError(f"不支持的检查类型：{check.type}")
+        probe = PROBES.get(check.type)
+        if probe is None:
+            raise CheckExecutionError(f"不支持的检查类型：{check.type}")
+        probe.validate(check)
+        return probe.run(check, thresholds)
     except CheckExecutionError as exc:
         return _base_result(
             check,
@@ -327,3 +303,59 @@ def run_check(
             latency_ms=None,
         )
 
+
+class Probe(NamedTuple):
+    validate: Callable[[CheckConfig], None]
+    run: Callable[[CheckConfig, Thresholds], CheckResult]
+
+
+PROBES: dict[str, Probe] = {
+    "ping": Probe(validate=_validate_ping, run=_run_ping),
+    "tcp": Probe(validate=_validate_tcp, run=_run_tcp),
+    "tls": Probe(validate=_validate_tls, run=_run_tls),
+    "http": Probe(validate=_validate_http, run=_run_http),
+}
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def isoformat(value: datetime) -> str:
+    return value.isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _latency_status(
+    latency_ms: float, thresholds: Thresholds
+) -> tuple[str, str]:
+    if latency_ms >= thresholds.latency_fail_ms:
+        return "fail", "延迟超过失败阈值"
+    if latency_ms >= thresholds.latency_warn_ms:
+        return "warn", "延迟超过告警阈值"
+    return "ok", "响应正常"
+
+
+def _base_result(
+    check: CheckConfig,
+    *,
+    status: str,
+    summary: str,
+    detail: str,
+    latency_ms: float | None,
+    metrics: dict[str, Any] | None = None,
+) -> CheckResult:
+    return CheckResult(
+        id=check.id,
+        name=check.name,
+        type=check.type,
+        target=check.target,
+        port=check.port,
+        status=status,
+        summary=summary,
+        detail=detail,
+        latency_ms=latency_ms,
+        checked_at=isoformat(utc_now()),
+        group=check.group,
+        tags=check.tags,
+        metrics=metrics or {},
+    )

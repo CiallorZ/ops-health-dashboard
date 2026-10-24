@@ -29,10 +29,19 @@ class InstanceLock:
         handle = self._handle
         if handle is None:
             return
+        if sys.platform != "win32":
+            # While our flock is still held, a legitimate acquirer cannot have
+            # taken over the file, so a matching PID means unlink is safe.
+            if self._lock_file_is_ours():
+                try:
+                    self.lock_path.unlink()
+                except OSError:
+                    pass
         try:
             if sys.platform == "win32":
                 import msvcrt
 
+                handle.seek(0)
                 try:
                     msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
                 except OSError:
@@ -50,11 +59,19 @@ class InstanceLock:
             except OSError:
                 pass
             self._handle = None
+        if sys.platform == "win32":
+            if self._lock_file_is_ours():
+                try:
+                    self.lock_path.unlink()
+                except OSError:
+                    pass
+
+    def _lock_file_is_ours(self) -> bool:
         try:
-            if self.lock_path.exists():
-                self.lock_path.unlink()
+            content = self.lock_path.read_text(encoding="ascii", errors="replace").strip()
         except OSError:
-            pass
+            return False
+        return content == str(os.getpid())
 
     def _acquire_posix(self) -> None:
         import fcntl
@@ -80,6 +97,9 @@ class InstanceLock:
 
         handle = self.lock_path.open("a+b")
         try:
+            # The mutex is byte 0; locking without seeking first would lock a
+            # byte at EOF, letting two processes hold different bytes.
+            handle.seek(0)
             msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
         except OSError:
             handle.close()

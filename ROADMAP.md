@@ -1,6 +1,6 @@
 # Sentinel Roadmap
 
-当前版本：`0.11.0`（2026-10-21）
+当前版本：`0.11.1`（2026-10-24）
 
 ## 目标
 
@@ -140,16 +140,16 @@ G1–G7 是当前形态就会出问题的地方；G8–G12 是综合监控目标
 
 #### v0.11 单实例与运行时可观测
 
-- [ ] `data/.sentinel.lock` 排他锁：POSIX `flock` / Windows `msvcrt` / `O_EXCL` 降级
-- [ ] 第二个进程启动失败并输出持有者 PID，退出码 3，不写入任何历史
-- [ ] `GET /healthz`（进程存活，不触发采样）
-- [ ] `GET /readyz`（配置已加载 + 数据目录可写 + 调度器在跑），未就绪返回 `503` 与原因
-- [ ] `GET /metrics` Prometheus 文本格式，标签只允许 `check_id` / `domain` / `status`
-- [ ] `deploy/systemd/sentinel.service` 样例（`Restart=on-failure`、`ProtectSystem=strict`）
+- [x] `data/.sentinel.lock` 排他锁：POSIX `flock` / Windows `msvcrt` / `O_EXCL` 降级
+- [x] 第二个进程启动失败并输出持有者 PID，退出码 3，不写入任何历史
+- [x] `GET /healthz`（进程存活，不触发采样）
+- [x] `GET /readyz`（配置已加载 + 数据目录可写 + 调度器在跑），未就绪返回 `503` 与原因
+- [x] `GET /metrics` Prometheus 文本格式，标签只允许 `check_id` / `domain` / `status`
+- [x] `deploy/systemd/sentinel.service` 样例（`Restart=on-failure`、`ProtectSystem=strict`）
 
 #### v0.12 探测契约与域维度
 
-- [ ] `PROBES` 注册表替代 `run_check` 的 `if/elif`，现有四类行为与测试零回归
+- [x] `PROBES` 注册表替代 `run_check` 的 `if/elif`，现有四类行为与测试零回归
 - [ ] 每个 probe 声明 `validate()` 与 `run()`，`Result` 必须带结构化 `metrics`
 - [ ] 引入 `domain` 枚举，默认 `network` 保持向后兼容，写入配置 / 快照 / 历史 / 指标标签
 - [ ] 每域独立并发预算 `domain_budget`，慢域不拖垮快域

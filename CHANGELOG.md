@@ -4,6 +4,41 @@ All notable changes are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `PROBES` registry in `monitor/checks.py`: each probe declares `validate()`
+  and `run()`, and `run_check` dispatches through the registry instead of the
+  type `if/elif` chain. Existing four probe behaviors and messages are
+  unchanged; a contract test pins the registry to `SUPPORTED_TYPES` in
+  `monitor/config.py` so the two can never drift. (ROADMAP v0.12, first slice)
+
+## [0.11.1] - 2026-10-24
+
+### Fixed
+
+- Windows single-instance lock actually enforced: `msvcrt.locking` now locks
+  byte 0 (`seek(0)` first). Previously the lock landed at EOF, so two
+  processes could hold different bytes and run concurrently against the same
+  data directory.
+- Windows `release()` unlocks byte 0; previously the mismatched offset raised
+  `PermissionError` and left the lock handle open until process exit.
+- Lock files are only removed while this process still provably owns them
+  (POSIX: content verified under the held `flock`; Windows: owner PID
+  content verified after the handle closes). A lock file taken over by
+  another holder is never deleted, closing the release/unlink race where a
+  third process could acquire a lock file name the real owner still holds.
+
+### Added
+
+- `tests/test_instance_lock.py`: first real unit tests for the instance lock
+  (the v0.11.0 changelog claimed these existed; they did not). Covers
+  second-instance rejection with owner PID, release cleanup and reacquire,
+  foreign/taken-over lock file preservation, flock mutual exclusion, and the
+  release-without-acquire no-op. POSIX paths run on CI (ubuntu); Windows
+  paths run locally and were verified with real two-process races.
+
 ## [0.11.0] - 2026-10-21
 
 ### Added
