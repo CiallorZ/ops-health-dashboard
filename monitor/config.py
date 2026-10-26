@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import ipaddress
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -13,7 +13,18 @@ from urllib.parse import urlparse
 from .maintenance import MaintenanceError, MaintenanceWindow, parse_maintenance_windows
 
 SUPPORTED_TYPES = {"http", "tcp", "tls", "ping"}
+SUPPORTED_DOMAINS = {
+    "network",
+    "host",
+    "database",
+    "middleware",
+    "container",
+    "iot",
+    "security",
+}
 MAX_CHECKS = 200
+DEFAULT_DOMAIN_WORKERS = 4
+MAX_DOMAIN_WORKERS = 8
 MAX_NAME_LENGTH = 120
 MAX_TARGET_LENGTH = 2048
 MAX_TAGS = 12
@@ -122,6 +133,19 @@ class DashboardConfig:
     monitor_interval_seconds: float = 60
     notifications: NotificationConfig = NotificationConfig()
     maintenance_windows: tuple[MaintenanceWindow, ...] = ()
+    domain_budget: dict[str, int] = field(default_factory=dict)
+
+    def workers_for_domain(self, domain: str) -> int:
+        return self.domain_budget.get(domain, DEFAULT_DOMAIN_WORKERS)
+
+    def public_domain_budget(self) -> dict[str, int]:
+        return {
+            "default": DEFAULT_DOMAIN_WORKERS,
+            **{
+                domain: self.workers_for_domain(domain)
+                for domain in sorted(SUPPORTED_DOMAINS)
+            },
+        }
 
     def public_dict(self) -> dict[str, Any]:
         return {
@@ -137,6 +161,7 @@ class DashboardConfig:
             "maintenance_windows": [
                 window.rule_dict() for window in self.maintenance_windows
             ],
+            "domain_budget": self.public_domain_budget(),
             "checks": [check.public_dict() for check in self.checks],
         }
 
@@ -205,6 +230,38 @@ def _group(value: Any, *, name: str) -> str:
     if len(group) > 80:
         raise ConfigError(f"{name} must be at most 80 characters")
     return group
+
+
+def _domain(value: Any, *, name: str) -> str:
+    if value is None:
+        # Backward compatible: every existing check stays in ``network``.
+        return "network"
+    if not isinstance(value, str) or value not in SUPPORTED_DOMAINS:
+        supported = ", ".join(sorted(SUPPORTED_DOMAINS))
+        raise ConfigError(f"{name} must be one of: {supported}")
+    return value
+
+
+def _domain_budget(value: Any) -> dict[str, int]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ConfigError("domain_budget must be an object")
+    budget: dict[str, int] = {}
+    for key, raw_workers in value.items():
+        if key not in SUPPORTED_DOMAINS:
+            supported = ", ".join(sorted(SUPPORTED_DOMAINS))
+            raise ConfigError(
+                f"domain_budget.{key} must be one of: {supported}"
+            )
+        if isinstance(raw_workers, bool) or not isinstance(raw_workers, int):
+            raise ConfigError(f"domain_budget.{key} must be an integer")
+        if not 1 <= raw_workers <= MAX_DOMAIN_WORKERS:
+            raise ConfigError(
+                f"domain_budget.{key} must be between 1 and {MAX_DOMAIN_WORKERS}"
+            )
+        budget[key] = raw_workers
+    return budget
 
 
 def _parse_expected_status(value: Any, *, name: str) -> tuple[int, ...]:
@@ -393,6 +450,7 @@ def _parse_check(raw: Any, index: int) -> CheckConfig:
         verify_tls=verify_tls,
         group=_group(raw.get("group"), name=f"{label}.group"),
         tags=_string_list(raw.get("tags"), name=f"{label}.tags"),
+        domain=_domain(raw.get("domain"), name=f"{label}.domain"),
     )
 
 
@@ -445,6 +503,7 @@ def parse_config(raw: Any) -> DashboardConfig:
         maximum=3600,
     )
     notifications = _parse_notifications(raw.get("notifications"))
+    domain_budget = _domain_budget(raw.get("domain_budget"))
 
     checks_raw = raw.get("checks")
     if not isinstance(checks_raw, list) or not checks_raw:
@@ -479,6 +538,7 @@ def parse_config(raw: Any) -> DashboardConfig:
         monitor_interval_seconds=monitor_interval_seconds,
         notifications=notifications,
         maintenance_windows=maintenance_windows,
+        domain_budget=domain_budget,
     )
 
 

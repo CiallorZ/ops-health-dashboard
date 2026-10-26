@@ -54,8 +54,8 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(
             second["history"][-1]["checks"],
             [
-                {"id": "a", "status": "ok", "latency_ms": 12.5},
-                {"id": "b", "status": "ok", "latency_ms": 12.5},
+                {"id": "a", "domain": "network", "status": "ok", "latency_ms": 12.5},
+                {"id": "b", "domain": "network", "status": "ok", "latency_ms": 12.5},
             ],
         )
         self.assertEqual(second["check_history"]["checks"]["a"]["samples"], 2)
@@ -216,6 +216,89 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(second["check_history"]["events"][0]["from"], "fail")
         self.assertEqual(second["check_history"]["events"][0]["to"], "ok")
 
+    def test_slow_domain_does_not_starve_fast_domain(self):
+        completed: dict[str, float] = {}
+        started = threading.Event()
+
+        def domain_check(check, thresholds):
+            if check.domain == "host":
+                started.set()
+                time.sleep(0.4)
+            completed[check.id] = time.monotonic()
+            return fake_check(check, thresholds)
+
+        config = DashboardConfig(
+            version=1,
+            thresholds=Thresholds(),
+            checks=(
+                CheckConfig(
+                    id="slow-1", name="Slow 1", type="ping",
+                    target="127.0.0.1", domain="host",
+                ),
+                CheckConfig(
+                    id="slow-2", name="Slow 2", type="ping",
+                    target="127.0.0.1", domain="host",
+                ),
+                CheckConfig(
+                    id="fast", name="Fast", type="ping",
+                    target="127.0.0.1", domain="network",
+                ),
+            ),
+            domain_budget={"host": 1, "network": 1},
+        )
+        with TemporaryDirectory() as directory:
+            runner = CheckRunnerService(
+                config,
+                HistoryStore(directory),
+                cache_seconds=0,
+                check_runner=domain_check,
+            )
+            snapshot = runner.get_snapshot(force=True)
+
+        self.assertEqual(len(snapshot["checks"]), 3)
+        # The fast domain must finish before the queued second slow check.
+        self.assertLess(completed["fast"], completed["slow-2"])
+        self.assertTrue(started.is_set())
+        self.assertEqual([c["id"] for c in snapshot["checks"]], ["slow-1", "slow-2", "fast"])
+
+    def test_domain_budget_is_respected_within_a_domain(self):
+        active = 0
+        peak = 0
+        lock = threading.Lock()
+
+        def domain_check(check, thresholds):
+            nonlocal active, peak
+            with lock:
+                active += 1
+                peak = max(peak, active)
+            time.sleep(0.05)
+            with lock:
+                active -= 1
+            return fake_check(check, thresholds)
+
+        config = DashboardConfig(
+            version=1,
+            thresholds=Thresholds(),
+            checks=tuple(
+                CheckConfig(
+                    id=f"db-{index}", name=f"DB {index}", type="tcp",
+                    target="127.0.0.1", port=5432, domain="database",
+                )
+                for index in range(4)
+            ),
+            domain_budget={"database": 2},
+        )
+        with TemporaryDirectory() as directory:
+            runner = CheckRunnerService(
+                config,
+                HistoryStore(directory),
+                cache_seconds=0,
+                check_runner=domain_check,
+            )
+            runner.get_snapshot(force=True)
+
+        self.assertLessEqual(peak, 2)
+
     def test_alert_dispatcher_receives_failure_and_recovery_transitions(self):
         statuses = iter(("fail", "ok", "ok", "fail"))
 
@@ -345,8 +428,8 @@ class TrendIntegrationTests(unittest.TestCase):
             runner.get_snapshot(force=True)
             payload = runner.metrics_payload()
         lines = payload.splitlines()
-        self.assertIn('sentinel_check_up{domain="未分组",id="a"} 1', lines)
-        self.assertIn('sentinel_check_up{domain="未分组",id="b"} 1', lines)
+        self.assertIn('sentinel_check_up{domain="network",id="a"} 1', lines)
+        self.assertIn('sentinel_check_up{domain="network",id="b"} 1', lines)
         self.assertNotIn("type=", payload)
         up_lines = [line for line in lines if line.startswith("sentinel_check_up{")]
         self.assertEqual(len(up_lines), 2)

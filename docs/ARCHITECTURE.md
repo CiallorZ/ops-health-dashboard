@@ -107,13 +107,13 @@ G1–G7 是**当前形态下就会出问题**的地方；G8–G12 是**新目标
 | G1 | 无单实例保护 | 全仓库无 `fcntl` / `msvcrt` / `O_EXCL`，只有 `threading.Lock` | 两进程指向同一 `data/` 会交错追加与轮转，可能丢历史 |
 | G2 | 无健康 / 就绪 / 指标端点 | `server.py` 只有 `/api/health` | 容器与 K8s 无法区分“进程活着”和“采样可用”，无法被 Prometheus 抓取 |
 | G3 | 存储不可查询 | 仅 JSONL + 内存窗口，无 `sqlite3`、无 `schema_version` | 多域多指标下全文件扫描不可接受，> 30 天留存做不到 |
-| G4 | 探测类型固定四类 | `SUPPORTED_TYPES = {"http","tcp","tls","ping"}`（`monitor/config.py:15`） | 新域只能改 `run_check` 的 `if/elif`，无法扩展 |
+| G4 | 探测类型固定四类 | `SUPPORTED_TYPES = {"http","tcp","tls","ping"}`（`monitor/config.py`） | 新域只能改 `run_check` 的 `if/elif`，无法扩展；v0.12 起由 `PROBES` 注册表承担分派 |
 | G5 | 无内置认证 | `server.py` 不读取任何 `Authorization` 头 | 一旦要给别人看就得完全依赖反向代理 |
 | G6 | 配置变更需重启 | 无热加载、无 `SIGHUP` 处理 | 改阈值要停服务，采样出现空档 |
 | G7 | 告警出口单一 | `monitor/alerts.py` 只有一种通用 JSON payload | 每个平台都要自建转换层 |
 | G8 | 无凭据作用域模型 | 只有 `webhook_url_env` / `signing_secret_env` 两个硬编码特例 | DB / K8s / MQTT 都要凭据，现无统一、可审计、不泄漏的引用方式 |
 | G9 | 无断言层 | 判定只有延迟阈值、HTTP 状态码集合、证书天数 | 新域只能回答“通不通”，回答不了“对不对 / 满不满 / 漂移没漂移” |
-| G10 | 无域维度 | 只有自由文本 `group`（默认“未分组”）与 `tags` | 阈值、告警语义、页面视图无法按域差异化，七个域会挤在同一列表里 |
+| G10 | 无域维度 | 只有自由文本 `group`（默认“未分组”）与 `tags` | 阈值、告警语义、页面视图无法按域差异化；v0.12 起已有独立 `domain` 字段贯通配置/快照/历史/指标 |
 | G11 | 无主机资源采集 | `monitor/` 内无 `/proc`、`os.statvfs`、`ctypes`、`getloadavg` 任何调用 | “主机监控”目前只有 ICMP 可达性，没有 CPU / 内存 / 磁盘 |
 | G12 | 无授权范围声明 | 目标只有格式校验，无 CIDR 归属判断 | 安全域会诱导越界探测；SSRF 面（如 `169.254.169.254`）无护栏 |
 
@@ -146,17 +146,17 @@ Phase A 不新增任何监控域，只做一件事：**让“多域”成为可�
 
 ### 4.2 探测契约与域维度（G4 / G10）
 
-**目标形态**：`PROBES` 注册表 + `domain` 字段，新增一种探测不改 `runner.py`。
+**当前形态（v0.12 已落地）**：`PROBES` 注册表 + `domain` 字段，新增一种探测不改 `runner.py`。
 
 **切片**
 
 1. 把 `run_check` 的 `if/elif` 换成 `PROBES: dict[str, Probe]`，每个 probe 声明
    `validate(raw) -> Spec` 与 `run(spec, thresholds) -> Result`；`Result` 必须带结构化 `metrics`。
    - 验收：现有四类行为与全部既有测试零回归（这是本切片的通过门槛）。
-2. 引入 `domain` 枚举（`network` 为默认值以保持向后兼容），写入配置、快照、历史与 `/metrics` 标签。
-3. 每域独立并发预算：`domain_budget`（如 `database: 2`），防止慢域拖垮快域。
-4. 显式区分 `prober` / `reader`：`reader` 型必须声明 `requires_secret`，
-   缺凭据时该检查单独 `fail` 并给出“缺少凭据引用”的原因，不影响其它检查。
+2. ✅ 引入 `domain` 枚举（`network` 为默认值以保持向后兼容），写入配置、快照、历史、告警 payload、离线报告与 `/metrics` 标签。
+3. ✅ 每域独立并发预算：`domain_budget`（如 `database: 2`），每域一个线程池，防止慢域拖垮快域。
+4. ✅ 显式区分 `prober` / `reader`：`reader` 型必须声明 `requires_secret`，
+   非法声明在导入期直接报错。缺凭据时的单检查失败语义留待 v0.14 的 `secret_ref`。
 
 **不做**：插件动态加载任意代码、第三方驱动。
 

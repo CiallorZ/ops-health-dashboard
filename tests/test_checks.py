@@ -55,6 +55,53 @@ class ChecksTests(unittest.TestCase):
         for probe in PROBES.values():
             self.assertTrue(callable(probe.validate))
             self.assertTrue(callable(probe.run))
+            self.assertIn(probe.domain, {"network", "host", "database",
+                                         "middleware", "container", "iot",
+                                         "security"})
+            self.assertIn(probe.kind, {"prober", "reader"})
+            if probe.kind == "reader":
+                self.assertTrue(probe.requires_secret)
+
+    def test_probe_contract_rejects_invalid_declarations(self):
+        from monitor.checks import (
+            Probe,
+            _run_ping,
+            _validate_ping,
+            _validate_probe_contract,
+        )
+
+        good = Probe(validate=_validate_ping, run=_run_ping, domain="network")
+        _validate_probe_contract("ok", good)
+
+        with self.assertRaisesRegex(ValueError, "unsupported domain"):
+            _validate_probe_contract(
+                "bad-domain",
+                Probe(validate=_validate_ping, run=_run_ping, domain="gopher"),
+            )
+        with self.assertRaisesRegex(ValueError, "invalid kind"):
+            _validate_probe_contract(
+                "bad-kind",
+                Probe(validate=_validate_ping, run=_run_ping, kind="writer"),
+            )
+        with self.assertRaisesRegex(ValueError, "requires_secret"):
+            _validate_probe_contract(
+                "bad-reader",
+                Probe(validate=_validate_ping, run=_run_ping, kind="reader"),
+            )
+
+    def test_check_result_carries_domain(self):
+        check = CheckConfig(
+            id="db", name="DB", type="tcp", target="127.0.0.1", port=5432,
+            domain="database",
+        )
+        with patch("monitor.checks.socket.create_connection") as connect:
+            connect.return_value.__enter__.return_value.getpeername.return_value = (
+                "127.0.0.1",
+                5432,
+            )
+            result = PROBES["tcp"].run(check, Thresholds())
+        self.assertEqual(result.domain, "database")
+        self.assertEqual(result.to_dict()["domain"], "database")
 
     def test_registry_dispatches_each_type(self):
         http_check = CheckConfig(

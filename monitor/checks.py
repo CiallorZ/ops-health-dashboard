@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, NamedTuple
 
 from . import __version__
-from .config import CheckConfig, Thresholds
+from .config import SUPPORTED_DOMAINS, CheckConfig, Thresholds
 
 USER_AGENT = f"ops-health-dashboard/{__version__}"
 
@@ -34,6 +34,7 @@ class CheckResult:
     group: str = "未分组"
     tags: tuple[str, ...] = ()
     metrics: dict[str, Any] = field(default_factory=dict)
+    domain: str = "network"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -52,6 +53,7 @@ class CheckResult:
             "group": self.group,
             "tags": list(self.tags),
             "metrics": self.metrics,
+            "domain": self.domain,
         }
 
 
@@ -307,14 +309,38 @@ def run_check(
 class Probe(NamedTuple):
     validate: Callable[[CheckConfig], None]
     run: Callable[[CheckConfig, Thresholds], CheckResult]
+    domain: str = "network"
+    kind: str = "prober"
+    requires_secret: bool = False
+
+
+def _validate_probe_contract(name: str, probe: Probe) -> None:
+    if probe.domain not in SUPPORTED_DOMAINS:
+        supported = ", ".join(sorted(SUPPORTED_DOMAINS))
+        raise ValueError(
+            f"probe {name} declares unsupported domain: {probe.domain} "
+            f"(expected one of: {supported})"
+        )
+    if probe.kind not in {"prober", "reader"}:
+        raise ValueError(
+            f"probe {name} declares invalid kind: {probe.kind} "
+            "(expected 'prober' or 'reader')"
+        )
+    if probe.kind == "reader" and not probe.requires_secret:
+        raise ValueError(
+            f"probe {name} is a reader and must declare requires_secret=True"
+        )
 
 
 PROBES: dict[str, Probe] = {
-    "ping": Probe(validate=_validate_ping, run=_run_ping),
-    "tcp": Probe(validate=_validate_tcp, run=_run_tcp),
-    "tls": Probe(validate=_validate_tls, run=_run_tls),
-    "http": Probe(validate=_validate_http, run=_run_http),
+    "ping": Probe(validate=_validate_ping, run=_run_ping, domain="network"),
+    "tcp": Probe(validate=_validate_tcp, run=_run_tcp, domain="network"),
+    "tls": Probe(validate=_validate_tls, run=_run_tls, domain="network"),
+    "http": Probe(validate=_validate_http, run=_run_http, domain="network"),
 }
+
+for _probe_name, _probe in PROBES.items():
+    _validate_probe_contract(_probe_name, _probe)
 
 
 def utc_now() -> datetime:
@@ -358,4 +384,5 @@ def _base_result(
         group=check.group,
         tags=check.tags,
         metrics=metrics or {},
+        domain=check.domain,
     )

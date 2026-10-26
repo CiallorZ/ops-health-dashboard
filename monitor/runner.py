@@ -104,6 +104,7 @@ class CheckRunnerService:
                     "checks": [
                         {
                             "id": result.id,
+                            "domain": result.domain,
                             "status": result.status,
                             "latency_ms": (
                                 round(result.latency_ms, 1)
@@ -186,7 +187,10 @@ class CheckRunnerService:
         lines = []
         checks = (self._cached or {}).get("checks", [])
         for check in checks:
-            domain = _label(str(check.get("group", "未分组")))
+            # The label carries the real monitoring domain (v0.12 contract),
+            # not the free-text business group, so dashboards can filter by
+            # domain without changing existing metric names.
+            domain = _label(str(check.get("domain", "network")))
             check_id = _label(str(check.get("id", "")))
             labels = 'domain="' + domain + '",id="' + check_id + '"'
             status = str(check.get("status", "unknown"))
@@ -209,15 +213,40 @@ class CheckRunnerService:
     def _execute(self, checks: list[CheckConfig]) -> list[CheckResult]:
         if not checks:
             return []
-        workers = max(1, min(self.max_workers, len(checks)))
-        with ThreadPoolExecutor(
-            max_workers=workers, thread_name_prefix="health-check"
-        ) as executor:
-            futures = [
-                executor.submit(self._run_with_retries, check)
-                for check in checks
-            ]
-            return [future.result() for future in futures]
+        # One pool per domain so a slow domain cannot starve a fast one. Each
+        # domain stays inside its own declared budget and the process-wide
+        # ``max_workers`` cap still applies to the largest single domain.
+        by_domain: dict[str, list[CheckConfig]] = {}
+        for check in checks:
+            by_domain.setdefault(check.domain, []).append(check)
+
+        results: dict[str, CheckResult] = {}
+        executors = {
+            domain: ThreadPoolExecutor(
+                max_workers=max(
+                    1,
+                    min(
+                        self.config.workers_for_domain(domain),
+                        self.max_workers,
+                        len(domain_checks),
+                    ),
+                ),
+                thread_name_prefix=f"health-{domain}",
+            )
+            for domain, domain_checks in by_domain.items()
+        }
+        try:
+            futures = {
+                executor.submit(self._run_with_retries, check): check
+                for domain, executor in executors.items()
+                for check in by_domain[domain]
+            }
+            for future, check in futures.items():
+                results[check.id] = future.result()
+        finally:
+            for executor in executors.values():
+                executor.shutdown(wait=True)
+        return [results[check.id] for check in checks]
 
     def _run_with_retries(self, check: CheckConfig) -> CheckResult:
         """Retry only a completed failed result, preserving the final evidence."""

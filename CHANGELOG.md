@@ -6,13 +6,35 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-26
+
 ### Added
 
 - `PROBES` registry in `monitor/checks.py`: each probe declares `validate()`
   and `run()`, and `run_check` dispatches through the registry instead of the
   type `if/elif` chain. Existing four probe behaviors and messages are
   unchanged; a contract test pins the registry to `SUPPORTED_TYPES` in
-  `monitor/config.py` so the two can never drift. (ROADMAP v0.12, first slice)
+  `monitor/config.py` so the two can never drift.
+- Probe declarations now carry `domain`, `kind` (`prober` / `reader`) and
+  `requires_secret`. A probe declared as a reader must set
+  `requires_secret=True`; invalid declarations fail at import time instead of
+  silently mislabelling metrics.
+- `domain` dimension on every check: optional `domain` config field (validated
+  against the seven planned domains), default `network` so existing configs
+  keep working, and the value flows into config output, results, snapshot,
+  per-run history, transition events, alert payloads, offline report and
+  Prometheus `domain` label.
+- Per-domain concurrency budgets via `domain_budget` (1–8 workers per domain,
+  default 4). Each domain runs in its own thread pool so a slow domain cannot
+  starve a fast one; results keep the configured check order.
+- `domain_budget` is exposed by `/api/config` and the dashboard policy panel
+  shows the default budget and how many domains override it.
+
+### Changed
+
+- The Prometheus `domain` label now reports the real monitoring domain instead
+  of the free-text business `group`. Metric names and label sets are
+  unchanged; only the value changes.
 
 ## [0.11.1] - 2026-10-24
 

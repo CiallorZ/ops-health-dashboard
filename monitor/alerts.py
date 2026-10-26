@@ -297,6 +297,7 @@ class AlertDispatcher:
                 "type": check.type,
                 "target": _safe_target(check.target),
                 "group": check.group,
+                "domain": check.domain,
                 "status": check.status,
                 "summary": check.summary,
                 "latency_ms": (

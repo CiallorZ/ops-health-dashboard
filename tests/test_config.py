@@ -46,6 +46,50 @@ class ConfigTests(unittest.TestCase):
             with self.assertRaisesRegex(ConfigError, message):
                 parse_config(raw)
 
+    def test_domain_defaults_to_network_and_is_exposed(self):
+        config = parse_config(MINIMAL)
+        check = config.checks[0]
+        self.assertEqual(check.domain, "network")
+        self.assertEqual(check.public_dict()["domain"], "network")
+        self.assertEqual(config.public_dict()["domain_budget"]["default"], 4)
+
+    def test_domain_accepts_known_domains_and_rejects_others(self):
+        raw = json.loads(json.dumps(MINIMAL))
+        raw["checks"][0]["domain"] = "host"
+        self.assertEqual(parse_config(raw).checks[0].domain, "host")
+
+        for value in ("gopher", "Network", 7, ""):
+            raw = json.loads(json.dumps(MINIMAL))
+            raw["checks"][0]["domain"] = value
+            with self.assertRaisesRegex(ConfigError, "must be one of"):
+                parse_config(raw)
+
+    def test_domain_budget_is_bounded_and_public(self):
+        raw = json.loads(json.dumps(MINIMAL))
+        raw["domain_budget"] = {"network": 2, "host": 8}
+        config = parse_config(raw)
+        self.assertEqual(config.workers_for_domain("network"), 2)
+        self.assertEqual(config.workers_for_domain("host"), 8)
+        self.assertEqual(config.workers_for_domain("database"), 4)
+        public = config.public_dict()["domain_budget"]
+        self.assertEqual(public["network"], 2)
+        self.assertEqual(public["host"], 8)
+        self.assertEqual(public["default"], 4)
+
+    def test_domain_budget_rejects_unknown_domain_and_bad_values(self):
+        for value, message in (
+            ({"nope": 2}, "must be one of"),
+            ({"network": 0}, "between 1 and 8"),
+            ({"network": 9}, "between 1 and 8"),
+            ({"network": True}, "must be an integer"),
+            ({"network": "2"}, "must be an integer"),
+            ([], "must be an object"),
+        ):
+            raw = json.loads(json.dumps(MINIMAL))
+            raw["domain_budget"] = value
+            with self.assertRaisesRegex(ConfigError, message):
+                parse_config(raw)
+
     def test_retry_attempts_is_bounded_and_public(self):
         raw = json.loads(json.dumps(MINIMAL))
         raw["checks"][0]["retry_attempts"] = 2

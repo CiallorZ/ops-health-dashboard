@@ -211,6 +211,7 @@ def summarize_check_history(
                         "check_id": check_id,
                         "name": meta.get("name", check_id),
                         "group": meta.get("group", "未分组"),
+                        "domain": meta.get("domain", "network"),
                         **change,
                     }
                 )

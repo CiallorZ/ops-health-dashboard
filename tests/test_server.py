@@ -280,6 +280,7 @@ class ServerTests(unittest.TestCase):
                 "id": "api",
                 "name": "API",
                 "group": "核心 服务",
+                "domain": "security",
                 "type": "ping",
                 "target": "https://example.test/health",
                 "status": "fail",
@@ -289,7 +290,8 @@ class ServerTests(unittest.TestCase):
             }],
         }
         _, _, body = self.get_text("/metrics")
-        self.assertIn('domain=\"核心 服务\",id=\"api\"', body)
+        self.assertIn('domain="security",id="api"', body)
+        self.assertNotIn("核心 服务", body)
         self.assertNotIn("type=", body)
 
     def get_text(self, path):
@@ -329,6 +331,7 @@ if __name__ == "__main__":
                 "id": "api",
                 "name": "API",
                 "group": "核心 服务",
+                "domain": "security",
                 "type": "ping",
                 "target": "https://example.test/health",
                 "status": "fail",
@@ -338,7 +341,8 @@ if __name__ == "__main__":
             }],
         }
         _, _, body = self.get_text("/metrics")
-        self.assertIn('domain="核心 服务",id="api"', body)
+        self.assertIn('domain="security",id="api"', body)
+        self.assertNotIn("核心 服务", body)
         self.assertNotIn("type=", body)
 
     def get_text(self, path):

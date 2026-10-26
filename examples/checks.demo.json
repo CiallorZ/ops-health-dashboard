@@ -13,11 +13,16 @@
     "tls_warn_days": 30,
     "tls_fail_days": 7
   },
+  "domain_budget": {
+    "network": 4,
+    "host": 2
+  },
   "checks": [
     {
       "id": "dashboard-api",
       "name": "控制面 API",
       "group": "本机服务",
+      "domain": "network",
       "type": "http",
       "target": "http://127.0.0.1:18080/api/health",
       "expected_status": [200],
@@ -80,6 +85,7 @@
       "id": "loopback-ping",
       "name": "本机回环 ICMP",
       "group": "本机服务",
+      "domain": "network",
       "type": "ping",
       "target": "127.0.0.1",
       "timeout_seconds": 3,

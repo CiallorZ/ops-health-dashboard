@@ -47,6 +47,7 @@ const elements = {
   retentionState: document.querySelector("#retention-state"),
   retentionUsage: document.querySelector("#retention-usage"),
   retentionArchives: document.querySelector("#retention-archives"),
+  domainBudgetDefault: document.querySelector("#domain-budget-default"),
   retentionNote: document.querySelector("#retention-note"),
   footerState: document.querySelector("#footer-state"),
 };
@@ -298,6 +299,7 @@ function renderCheck(check) {
       <div class="check-main">
         <div class="check-title">
           <strong>${escapeHtml(check.name)}</strong>
+          <span class="check-domain">${escapeHtml(check.domain || "network")}</span>
           <span class="check-type">${escapeHtml(check.type)}</span>
         </div>
         ${tagHtml}
@@ -330,6 +332,7 @@ function renderChecks() {
       check.target,
       targetLabel(check),
       check.group,
+      check.domain,
       ...(Array.isArray(check.tags) ? check.tags : []),
     ].join(" ").toLocaleLowerCase("zh-CN");
     return haystack.includes(query);
@@ -684,6 +687,16 @@ function renderConfig(config) {
   elements.thresholdTlsFail.textContent = `${formatNumber(thresholds.tls_fail_days)} 天`;
   elements.monitorInterval.textContent =
     `后台每 ${formatInterval(Number(config?.monitor_interval_seconds))}采样`;
+  const budget = config?.domain_budget ?? {};
+  const defaultWorkers = Number(budget.default);
+  const overrides = Object.entries(budget).filter(
+    ([domain, workers]) => domain !== "default" && Number(workers) !== defaultWorkers,
+  );
+  elements.domainBudgetDefault.textContent = Number.isFinite(defaultWorkers)
+    ? overrides.length
+      ? `${defaultWorkers}（${overrides.length} 域自定义）`
+      : `${defaultWorkers}`
+    : "--";
 }
 
 function formatBytes(value) {
