@@ -111,6 +111,11 @@ class CheckRunnerService:
                                 if result.latency_ms is not None
                                 else None
                             ),
+                            **(
+                                {"assertions": result.assertions}
+                                if result.assertions
+                                else {}
+                            ),
                         }
                         for result in results
                     ],
@@ -267,7 +272,7 @@ class CheckRunnerService:
 
     @staticmethod
     def _summarize(results: list[CheckResult]) -> dict:
-        counts = {"ok": 0, "warn": 0, "fail": 0}
+        counts = {"ok": 0, "warn": 0, "fail": 0, "unknown": 0}
         for result in results:
             if result.status in counts:
                 counts[result.status] += 1
@@ -275,6 +280,8 @@ class CheckRunnerService:
             health = "critical"
         elif counts["warn"]:
             health = "degraded"
+        elif counts["unknown"]:
+            health = "unknown"
         elif results:
             health = "healthy"
         else:
@@ -285,6 +292,7 @@ class CheckRunnerService:
             "ok": counts["ok"],
             "warn": counts["warn"],
             "fail": counts["fail"],
+            "unknown": counts["unknown"],
         }
 
     def _with_history(

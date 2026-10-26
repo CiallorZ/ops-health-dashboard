@@ -306,6 +306,10 @@ h1 em {
   border-color: rgba(255, 113, 106, 0.42);
 }
 
+.score-card[data-health="unknown"] {
+  border-color: var(--line);
+}
+
 .score-orbit {
   position: absolute;
   top: 22px;
@@ -372,6 +376,10 @@ h1 em {
 
 .score-card[data-health="critical"] .score-state {
   color: var(--red);
+}
+
+.score-card[data-health="unknown"] .score-state {
+  color: var(--muted);
 }
 
 .score-foot {
@@ -822,6 +830,10 @@ h2 {
 
 .heartbeat.fail {
   background: var(--red);
+}
+
+.status-line.unknown {
+  background: var(--faint);
 }
 
 .heartbeat.unknown {

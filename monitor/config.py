@@ -8,6 +8,8 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from .assertions import Assertion, AssertionConfigError, parse_assertions
 from urllib.parse import urlparse
 
 from .maintenance import MaintenanceError, MaintenanceWindow, parse_maintenance_windows
@@ -103,6 +105,7 @@ class CheckConfig:
     group: str = "未分组"
     tags: tuple[str, ...] = ()
     domain: str = "network"
+    assertions: tuple[Assertion, ...] = ()
 
     def public_dict(self) -> dict[str, Any]:
         port = self.port
@@ -122,6 +125,7 @@ class CheckConfig:
             "group": self.group,
             "tags": list(self.tags),
             "domain": self.domain,
+            "assertions": [assertion.public_dict() for assertion in self.assertions],
         }
 
 
@@ -433,6 +437,13 @@ def _parse_check(raw: Any, index: int) -> CheckConfig:
         maximum=60,
     )
 
+    try:
+        assertions = parse_assertions(
+            raw.get("assertions"), name=f"{label}.assertions"
+        )
+    except AssertionConfigError as exc:
+        raise ConfigError(str(exc)) from exc
+
     return CheckConfig(
         id=check_id,
         name=name,
@@ -451,6 +462,7 @@ def _parse_check(raw: Any, index: int) -> CheckConfig:
         group=_group(raw.get("group"), name=f"{label}.group"),
         tags=_string_list(raw.get("tags"), name=f"{label}.tags"),
         domain=_domain(raw.get("domain"), name=f"{label}.domain"),
+        assertions=assertions,
     )
 
 

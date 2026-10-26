@@ -55,7 +55,7 @@ class HistoryInsightTests(unittest.TestCase):
         self.assertEqual(api["samples"], 3)
         self.assertEqual(api["availability_percent"], 66.7)
         self.assertEqual(api["average_latency_ms"], 30.0)
-        self.assertEqual(api["counts"], {"ok": 1, "warn": 1, "fail": 1})
+        self.assertEqual(api["counts"], {"ok": 1, "warn": 1, "fail": 1, "unknown": 0})
         self.assertEqual(api["last_change"]["from"], "warn")
         self.assertEqual(api["last_change"]["to"], "fail")
         self.assertEqual(
@@ -181,7 +181,7 @@ class HistoryTrendTests(unittest.TestCase):
                 {"generated_at": "2026-10-21T00:00:00Z", "checks": "broken"},
                 {
                     "generated_at": "2026-10-21T00:00:00Z",
-                    "checks": [{"id": "api", "status": "unknown"}],
+                    "checks": [{"id": "api", "status": "invalid"}],
                 },
             ],
             [{"id": "api", "name": "API"}],

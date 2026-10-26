@@ -1285,14 +1285,14 @@
       <div class="wrap">
         <section class="hero" aria-labelledby="title">
           <div class="hero-copy">
-<p class="kicker"><span class="dot" aria-hidden="true"></span> LOCAL-FIRST OBSERVABILITY · v0.12.0</p>
+<p class="kicker"><span class="dot" aria-hidden="true"></span> LOCAL-FIRST OBSERVABILITY · v0.13.0</p>
             <h1 id="title">把异常<br><em>提前看见</em><span class="period">。</span></h1>
             <p class="lead">
               ICMP、TCP、TLS 与 HTTP 在后台持续采样，汇入同一条实时时间线。
               每项资产拥有 heartbeat、可用率、真实状态变化与 Webhook 投递证据，没有伪造成功率。
             </p>
             <div class="cta">
-<a class="btn primary" href="downloads/sentinel-0.12.0.zip">下载 v0.12.0 →</a>
+<a class="btn primary" href="downloads/sentinel-0.13.0.zip">下载 v0.13.0 →</a>
               <a class="btn ghost" href="#demo">运行本地 Demo</a>
             </div>
             <dl class="facts">
@@ -1550,8 +1550,8 @@
                 <span>01 / WINDOWS</span>
                 <h3>便携源码包</h3>
                 <p>下载 ZIP，解压，确认 Python 3.11+，双击 <code>start-sentinel.cmd</code>。</p>
-                <a href="downloads/sentinel-0.12.0.zip">下载 v0.12.0 ↗</a>
-                <a href="downloads/sentinel-0.12.0.zip.sha256">校验文件</a>
+                <a href="downloads/sentinel-0.13.0.zip">下载 v0.13.0 ↗</a>
+                <a href="downloads/sentinel-0.13.0.zip.sha256">校验文件</a>
               </article>
               <article class="install-card" data-tone="amber">
                 <span>02 / DOCKER</span>
@@ -1575,9 +1575,9 @@
           </div>
 
           <div class="terminal" aria-label="安装与启动命令">
-            <div class="terminal-bar">POWERSHELL / SENTINEL v0.12.0</div>
+            <div class="terminal-bar">POWERSHELL / SENTINEL v0.13.0</div>
             <pre><span class="c"># 1. 下载并解压便携包后</span>
-<span class="g">cd</span> sentinel-0.12.0
+<span class="g">cd</span> sentinel-0.13.0
 <span class="g">.\start-sentinel.cmd</span>
 
 <span class="c"># 2. 或直接从源码启动</span>
@@ -1631,7 +1631,7 @@
             </div>
           </div>
           <p style="margin-top: 28px; color: var(--muted); font-size: 15px;">
-            当前只有四类黑盒探测与延迟阈值，要覆盖更多资产类型，需要先补**域 / 探测 / 断言**三层内核。
+            当前支持 ICMP / TCP / TLS / HTTP 四类黑盒探测与有界声明式断言层。后续域扩展仍先补齐对应探测契约、断言语义与真实证据视图。
             缺口证据（G1–G12）与每层可行性见
             <a href="https://github.com/CiallorZ/ops-health-dashboard/blob/main/docs/ARCHITECTURE.md" style="color: var(--acid); text-decoration: underline;">架构与开发方向</a>，
             版本排期见 <a href="https://github.com/CiallorZ/ops-health-dashboard/blob/main/ROADMAP.md" style="color: var(--acid); text-decoration: underline;">ROADMAP</a>。
@@ -1714,7 +1714,7 @@
       </div>
 
       <footer class="wrap">
-        <span>SENTINEL v0.12.0 · MIT LICENSE</span>
+        <span>SENTINEL v0.13.0 · MIT LICENSE</span>
         <span>Python standard library · no build chain</span>
         <a href="https://github.com/CiallorZ/ops-health-dashboard">github.com/CiallorZ/ops-health-dashboard ↗</a>
       </footer>

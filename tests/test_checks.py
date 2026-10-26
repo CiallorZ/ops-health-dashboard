@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 from monitor import __version__
 from monitor.checks import USER_AGENT
 from monitor.checks import PROBES, CheckExecutionError, _run_http, _run_tls, run_check
+from monitor.assertions import Assertion
 from monitor.config import CheckConfig, Thresholds
 from monitor.config import SUPPORTED_TYPES
 
@@ -49,6 +50,36 @@ class TlsContext:
 
 
 class ChecksTests(unittest.TestCase):
+    def test_assertions_replace_default_verdict_and_persist_evidence(self):
+        check = CheckConfig(
+            id="http", name="HTTP", type="http", target="https://example.com",
+            assertions=(Assertion("status_code", "in", fail=[200]),),
+        )
+        with patch("urllib.request.urlopen", return_value=FakeResponse(status=200)):
+            result = run_check(check, Thresholds())
+        self.assertEqual(result.status, "fail")
+        self.assertEqual(result.assertions[0]["actual"], 200)
+        self.assertIn("实测 200 / 判定依据 status_code in [200]", result.detail)
+        self.assertEqual(result.to_dict()["assertions"], result.assertions)
+
+    def test_missing_assertion_metric_is_unknown_and_not_a_success(self):
+        check = CheckConfig(
+            id="http", name="HTTP", type="http", target="https://example.com",
+            assertions=(Assertion("remaining_days", "<", fail=7),),
+        )
+        with patch("urllib.request.urlopen", return_value=FakeResponse(status=200)):
+            result = run_check(check, Thresholds())
+        self.assertEqual(result.status, "unknown")
+        self.assertIn("实测 --", result.detail)
+
+    def test_probe_failure_remains_failure(self):
+        check = CheckConfig(
+            id="bad", name="bad", type="http", target="https://example.com",
+            assertions=(Assertion("status_code", "==", fail=200),),
+        )
+        with patch("urllib.request.urlopen", side_effect=CheckExecutionError("连接失败")):
+            self.assertEqual(run_check(check, Thresholds()).status, "fail")
+
     def test_probe_registry_matches_supported_types(self):
         # config.py owns the accepted set; the registry must never drift.
         self.assertEqual(set(PROBES), SUPPORTED_TYPES)

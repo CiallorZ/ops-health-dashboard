@@ -11,9 +11,9 @@
 [GitHub Actions](https://github.com/CiallorZ/ops-health-dashboard/actions/workflows/ci.yml)
 · [Python 3.11+](https://www.python.org/)
 · [MIT License](LICENSE)
-· [v0.12.0](VERSION)
+· [v0.13.0](VERSION)
 
-[下载 v0.12.0](docs/downloads/sentinel-0.12.0.zip)
+[下载 v0.13.0](docs/downloads/sentinel-0.13.0.zip)
 · [介绍页](docs/index.html)
 · [架构与方向](docs/ARCHITECTURE.md)
 · [安全边界](docs/SECURITY.md)
@@ -103,7 +103,7 @@ Sentinel 是独立的 Python 标准库实现，不复制 Uptime Kuma 的 Vue / S
 
 | 方式 | 适合场景 | 入口 |
 |---|---|---|
-| Windows 便携包 | 下载后直接运行，不需要构建 | [下载 `sentinel-0.12.0.zip`](docs/downloads/sentinel-0.12.0.zip) · [SHA256](docs/downloads/sentinel-0.12.0.zip.sha256) |
+| Windows 便携包 | 下载后直接运行，不需要构建 | [下载 `sentinel-0.13.0.zip`](docs/downloads/sentinel-0.13.0.zip) · [SHA256](docs/downloads/sentinel-0.13.0.zip.sha256) |
 | Docker Compose | Linux 服务器或隔离环境 | 仓库根目录执行 `docker compose up --build -d` |
 | 源码运行 | 开发、审计与自定义 | `git clone` 后执行 `python server.py` |
 
@@ -218,6 +218,7 @@ python server.py --no-scheduler
 | `target` | HTTP 为完整 URL；其余为主机名或 IP |
 | `port` | `tcp` 必填；`tls` 默认 `443` |
 | `expected_status` | HTTP 可接受状态码，默认 `[200]` |
+| `assertions` | 可选声明式判定，最多 8 条；`op` 只允许 `== != > >= < <= in exists missing`，最多 16 个 `in` 字面量，只接受有限数字、布尔和字面量/前缀字符串；缺省沿用默认探测判定 |
 | `verify_tls` | 是否验证证书链，默认 `true`；关闭会显著降低判断可信度 |
 | `group` | 业务分组，默认 `未分组`，最多 80 个字符 |
 | `domain` | 监控域：`network` / `host` / `database` / `middleware` / `container` / `iot` / `security`，默认 `network` |
@@ -473,7 +474,7 @@ docker compose up --build -d
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-release.ps1
 ```
 
-脚本会生成 `dist/sentinel-0.12.0.zip` 与对应的 `.sha256`，包含源码、默认配置、启动脚本、演示替身和文档。`dist/` 已加入 `.gitignore`，不会污染源码提交；脚本同时把最终包和校验文件复制到 `docs/downloads/`，供 README 与介绍页直接下载。构建包时不会把 `docs/downloads/` 再次打包，避免自包含递归。
+脚本会生成 `dist/sentinel-0.13.0.zip` 与对应的 `.sha256`，包含源码、默认配置、启动脚本、演示替身和文档。`dist/` 已加入 `.gitignore`，不会污染源码提交；脚本同时把最终包和校验文件复制到 `docs/downloads/`，供 README 与介绍页直接下载。构建包时不会把 `docs/downloads/` 再次打包，避免自包含递归。
 
 ## Windows 常驻
 
@@ -521,7 +522,7 @@ python server.py --port 18080 --config examples\checks.demo.json --data-dir data
 
 - [x] `v0.11` 单实例锁 + `/healthz` `/readyz` `/metrics` + systemd 样例。
 - [x] `v0.12` 探测注册表 + `domain` 维度 + 每域并发预算。
-- [ ] `v0.13` 断言层：声明式 `assertions`，判定与采集解耦。
+- [x] `v0.13` 断言层：声明式 `assertions`，判定与采集解耦。
 - [ ] `v0.14` 凭据作用域 `secret_ref` + 授权范围 `scope` / `denied_cidrs`。
 - [ ] `v0.15` 存储演进：`schema_version`、`HistoryBackend`、SQLite 双写与迁移。
 - [ ] `v0.16` 只读分享令牌、反代样例、告警 Provider 矩阵、配置热加载。

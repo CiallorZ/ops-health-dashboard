@@ -6,6 +6,26 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-27
+
+### Added
+
+- Declarative per-check `assertions`: each rule targets one probe metric or
+  `latency_ms`, accepts bounded `warn` / `fail` thresholds, and defaults to no
+  behavior change when omitted. Operators choose the expected comparison; the
+  default probe thresholds remain evidence for the legacy verdict.
+- Bounded assertion grammar: `== != > >= < <= in exists missing`, at most 8
+  rules per check, 16 `in` values, finite numbers/booleans and literal or
+  prefix strings only. Regex, expression engines and cross-check math are
+  deliberately unsupported.
+- Structured assertion evidence (`actual`, verdict and judgment reason) in
+  snapshots, per-run history and per-check heartbeats. `unknown` is used for
+  a missing metric or incompatible metric type; it is never counted as
+  available and is not retried.
+- Dashboard and offline reports expose assertion evidence and truthful
+  `unknown` totals/health. Long trends distinguish an unknown day from a
+  healthy day and render missing availability as `--`.
+
 ## [0.12.0] - 2026-10-26
 
 ### Added

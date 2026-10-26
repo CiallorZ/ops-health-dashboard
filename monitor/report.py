@@ -78,7 +78,11 @@ def build_report(snapshot: dict[str, Any], *, skipped_check_ids: tuple[str, ...]
     health = _cell(summary.get("health"))
     totals = " / ".join(
         f"{label}: {_cell(summary.get(key, 0))}"
-        for key, label in (("total", "总计"), ("ok", "正常"), ("warn", "预警"), ("fail", "失败"))
+        for key, label in (
+            ("total", "总计"), ("ok", "正常"), ("warn", "预警"), ("fail", "失败"),
+            ("unknown", "未知"),
+        )
+        if key != "unknown" or "unknown" in summary
     )
     document = f"""<!doctype html>
 <html lang="zh-CN">

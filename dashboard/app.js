@@ -63,6 +63,7 @@ const healthLabels = {
   degraded: "存在预警",
   critical: "需要处置",
   empty: "没有启用检查",
+  unknown: "部分状态未知",
   loading: "正在采集",
 };
 
@@ -225,7 +226,9 @@ function renderSummary(data) {
   elements.scoreTotal.textContent = `${total} 项资产`;
   const risk = summary.fail
     ? `${summary.fail} 项需要处置`
-    : summary.warn
+    : summary.unknown
+      ? `${summary.unknown} 项缺少判定依据`
+      : summary.warn
       ? `${summary.warn} 项待观察`
       : total
         ? "没有发现异常"
@@ -249,7 +252,7 @@ function renderSummary(data) {
 }
 
 function renderCheck(check) {
-  const status = ["ok", "warn", "fail"].includes(check.status)
+  const status = ["ok", "warn", "fail", "unknown"].includes(check.status)
     ? check.status
     : "unknown";
   const attempts = Number(check.metrics?.attempts ?? 1);
@@ -278,7 +281,7 @@ function renderCheck(check) {
         aria-label="${escapeHtml(`${samples} 轮历史，可用率 ${formatPercent(availability)}`)}"
       >
         ${heartbeats.map((sample) => {
-          const sampleStatus = ["ok", "warn", "fail"].includes(sample.status)
+          const sampleStatus = ["ok", "warn", "fail", "unknown"].includes(sample.status)
             ? sample.status
             : "unknown";
           const latency = Number.isFinite(sample.latency_ms)
@@ -401,7 +404,7 @@ function renderTrend(history) {
   elements.trendBars.innerHTML = items.map((item) => {
     const ratio = item.total ? (item.ok / item.total) : 0;
     const height = Math.max(8, Math.round(ratio * 76));
-    const health = ["healthy", "degraded", "critical"].includes(item.health)
+    const health = ["healthy", "degraded", "critical", "unknown"].includes(item.health)
       ? item.health
       : "degraded";
     const label = `${formatTime(item.generated_at)} · ${item.ok}/${item.total} 正常`;
@@ -436,12 +439,14 @@ function renderLongTrend(trends) {
   elements.longTrendList.innerHTML = daily.map(([day, item]) => {
     const availability = Number.isFinite(item.availability_percent)
       ? item.availability_percent
-      : 0;
+      : null;
     const tone = item.fail
       ? "critical"
       : item.warn
         ? "degraded"
-        : "healthy";
+        : item.unknown
+          ? "unknown"
+          : "healthy";
     return `
       <article class="long-trend-row" data-tone="${escapeHtml(tone)}">
         <div class="long-trend-head">
@@ -449,7 +454,7 @@ function renderLongTrend(trends) {
           <span>${escapeHtml(`${item.samples} 次采样 · 可用率 ${formatPercent(availability)}`)}</span>
         </div>
         <div class="long-trend-bar" aria-hidden="true">
-          <i style="width:${Math.max(2, Math.round(availability))}%"></i>
+          <i style="width:${availability === null ? 0 : Math.max(2, Math.round(availability))}%"></i>
         </div>
         <div class="long-trend-meta">
           <span>p50 ${escapeHtml(formatLatency(item.p50_latency_ms))}</span>

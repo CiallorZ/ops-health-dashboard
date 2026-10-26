@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, NamedTuple
 
 from . import __version__
+from .assertions import assertion_status, evaluate_assertions
 from .config import SUPPORTED_DOMAINS, CheckConfig, Thresholds
 
 USER_AGENT = f"ops-health-dashboard/{__version__}"
@@ -35,6 +36,7 @@ class CheckResult:
     tags: tuple[str, ...] = ()
     metrics: dict[str, Any] = field(default_factory=dict)
     domain: str = "network"
+    assertions: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -54,6 +56,7 @@ class CheckResult:
             "tags": list(self.tags),
             "metrics": self.metrics,
             "domain": self.domain,
+            "assertions": self.assertions,
         }
 
 
@@ -287,7 +290,20 @@ def run_check(
         if probe is None:
             raise CheckExecutionError(f"不支持的检查类型：{check.type}")
         probe.validate(check)
-        return probe.run(check, thresholds)
+        result = probe.run(check, thresholds)
+        if not check.assertions:
+            return result
+        evidence = evaluate_assertions(
+            check.assertions,
+            result.metrics,
+            latency_ms=result.latency_ms,
+        )
+        result.assertions = evidence
+        result.status = assertion_status(evidence, fallback=result.status)
+        result.detail = "；".join(
+            [result.detail, *(item["detail"] for item in evidence)]
+        )
+        return result
     except CheckExecutionError as exc:
         return _base_result(
             check,
