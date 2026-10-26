@@ -101,14 +101,14 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
                     problems.append("snapshot unavailable")
                 else:
                     try:
-                        self.server.runner.history.stats()
-                    except OSError as exc:
-                        problems.append(f"data directory not writable: {exc}")
+                        self.server.runner.history.check_writable()
+                    except OSError:
+                        problems.append("history storage not writable")
                 sched = self.server.scheduler.status()
                 if not sched.get("running"):
                     problems.append("scheduler not running")
-            except Exception as exc:  # keep /readyz honest under partial failures
-                problems.append(str(exc))
+            except Exception:  # keep /readyz honest under partial failures
+                problems.append("readiness check failed")
             if problems:
                 self._send_json(
                     HTTPStatus.SERVICE_UNAVAILABLE,

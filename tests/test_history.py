@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 from tempfile import TemporaryDirectory
 from pathlib import Path
 
@@ -212,6 +213,25 @@ class HistoryTrendTests(unittest.TestCase):
 
 
 class HistoryRetentionTests(unittest.TestCase):
+    def test_writable_probe_preserves_history_and_cleans_up(self):
+        store = HistoryStore(self.data_dir)
+        store.append({"run_id": "before"})
+        before = store.path.read_bytes()
+        before_files = set(self.data_dir.iterdir())
+        store.check_writable()
+        self.assertEqual(store.path.read_bytes(), before)
+        self.assertEqual(set(self.data_dir.iterdir()), before_files)
+
+    def test_writable_probe_reports_directory_and_history_failures(self):
+        store = HistoryStore(self.data_dir)
+        store.append({"run_id": "before"})
+        with patch("monitor.history.tempfile.TemporaryFile", side_effect=PermissionError):
+            with self.assertRaises(PermissionError):
+                store.check_writable()
+        with patch.object(Path, "open", side_effect=PermissionError):
+            with self.assertRaises(PermissionError):
+                store.check_writable()
+
     def setUp(self):
         self.temp = TemporaryDirectory()
         self.data_dir = Path(self.temp.name)

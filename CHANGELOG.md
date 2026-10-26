@@ -6,6 +6,11 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- `/readyz` now tests directory writes and access to an existing history file;
+  storage failures return 503 without exposing filesystem error details.
+
 ## [0.13.0] - 2026-10-27
 
 ### Fixed

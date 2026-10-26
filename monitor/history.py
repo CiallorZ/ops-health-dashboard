@@ -5,6 +5,7 @@ from __future__ import annotations
 import bisect
 import json
 import math
+import tempfile
 import threading
 from collections import deque
 from datetime import date
@@ -544,6 +545,19 @@ class HistoryStore:
         bounded = max(1, min(int(limit), self.max_memory))
         with self._lock:
             return list(self._items)[-bounded:]
+
+    def check_writable(self) -> None:
+        """Probe the directory and existing history file without changing history."""
+        with self._lock:
+            with tempfile.TemporaryFile(dir=self.data_dir, mode="w+b") as probe:
+                probe.write(b"\0")
+                probe.flush()
+            try:
+                self.path.stat()
+            except FileNotFoundError:
+                return
+            with self.path.open("ab"):
+                pass
 
     # ------------------------------------------------------------------ stats
     def stats(self) -> dict[str, Any]:

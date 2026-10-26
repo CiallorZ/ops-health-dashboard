@@ -285,6 +285,21 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(body["status"], "ready")
         self.assertEqual(body["version"], __version__)
 
+    def test_readyz_rejects_unwritable_storage_and_recovers(self):
+        self.server.start_background_monitor()
+        self.server.runner.get_snapshot(force=True)
+        with patch.object(self.server.runner.history, "check_writable", side_effect=PermissionError("private-path")):
+            with self.assertRaises(urllib.error.HTTPError) as response:
+                self.get_json("/readyz")
+            self.assertEqual(response.exception.code, 503)
+            payload = json.loads(response.exception.read())
+            response.exception.close()
+            self.assertIn("history storage not writable", payload["problems"])
+            self.assertNotIn("private-path", str(payload))
+        status, _, payload = self.get_json("/readyz")
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status"], "ready")
+
     def test_metrics_returns_prometheus_text(self):
         self.server.runner.get_snapshot(force=True)
         status, headers, body = self.get_text("/metrics")
