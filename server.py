@@ -31,7 +31,7 @@ SERVER_VERSION = f"OpsHealthDashboard/{__version__}"
 
 
 class DashboardServer(ThreadingHTTPServer):
-    daemon_threads = True
+    daemon_threads = False
     allow_reuse_address = True
 
     def __init__(
@@ -55,17 +55,20 @@ class DashboardServer(ThreadingHTTPServer):
 
     def server_close(self) -> None:
         self.scheduler.stop()
+        # Close the listener and wait for request handlers before releasing
+        # the data lock; handlers can also trigger a snapshot.
+        super().server_close()
         if self.runner.alert_dispatcher is not None:
             self.runner.alert_dispatcher.close()
         if self.lock is not None:
             self.lock.release()
-        super().server_close()
 
 
 class DashboardRequestHandler(BaseHTTPRequestHandler):
     server: DashboardServer
     server_version = SERVER_VERSION
     sys_version = ""
+    timeout = 10
 
     def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
         parsed = urlparse(self.path)

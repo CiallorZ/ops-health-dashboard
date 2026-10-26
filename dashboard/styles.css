@@ -604,6 +604,29 @@ h2 {
   opacity: 1;
 }
 
+.domain-filter {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.domain-filter select {
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  color: var(--text);
+  background: var(--surface-raised);
+  font: inherit;
+}
+
+.domain-filter select:focus-visible {
+  outline: 2px solid var(--acid);
+  outline-offset: 2px;
+}
+
 .filter-bar {
   display: flex;
   flex: 0 0 auto;

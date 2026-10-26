@@ -18,6 +18,7 @@ const elements = {
   checksList: document.querySelector("#checks-list"),
   checksCount: document.querySelector("#checks-count"),
   checkSearch: document.querySelector("#check-search"),
+  domainFilter: document.querySelector("#domain-filter"),
   trendBars: document.querySelector("#trend-bars"),
   transitionList: document.querySelector("#transition-list"),
   monitorInterval: document.querySelector("#monitor-interval"),
@@ -53,6 +54,7 @@ const elements = {
 };
 
 let activeFilter = "all";
+let activeDomain = "all";
 let searchQuery = "";
 let latestStatus = null;
 let loading = false;
@@ -325,9 +327,16 @@ function renderCheck(check) {
 }
 
 function renderChecks() {
+  if (!latestStatus) return;
   const checks = latestStatus?.checks ?? [];
+  const domains = [...new Set(checks.map((check) => check.domain || "network"))].sort();
+  if (activeDomain !== "all" && !domains.includes(activeDomain)) activeDomain = "all";
+  elements.domainFilter.innerHTML = '<option value="all">全部域</option>' +
+    domains.map((domain) => `<option value="${escapeHtml(domain)}">${escapeHtml(domain)}</option>`).join("");
+  elements.domainFilter.value = activeDomain;
   const query = searchQuery.trim().toLocaleLowerCase("zh-CN");
   const filtered = checks.filter((check) => {
+    if (activeDomain !== "all" && (check.domain || "network") !== activeDomain) return false;
     if (activeFilter !== "all" && check.status !== activeFilter) return false;
     if (!query) return true;
     const haystack = [
@@ -344,7 +353,7 @@ function renderChecks() {
 
   if (!filtered.length) {
     elements.checksList.innerHTML = checks.length
-      ? '<div class="empty-state">没有匹配的检查，试试清除搜索或切换状态。</div>'
+      ? '<div class="empty-state">没有匹配的检查，试试清除搜索或切换筛选。</div>'
       : '<div class="empty-state">没有可展示的检测结果</div>';
     return;
   }
@@ -777,6 +786,25 @@ async function loadStatus({ force = false } = {}) {
     if (force) showToast("已刷新全部检测");
   } catch (error) {
     setConnection("fail", "离线");
+    latestStatus = null;
+    elements.scoreCard.dataset.health = "unknown";
+    elements.scoreValue.textContent = "--";
+    elements.scoreState.textContent = "连接中断";
+    elements.scoreRisk.textContent = "数据不可用";
+    elements.scoreTotal.textContent = "-- 项资产";
+    elements.metricOk.textContent = "--";
+    elements.metricWarn.textContent = "--";
+    elements.metricFail.textContent = "--";
+    elements.metricLatency.textContent = "--";
+    elements.runDuration.textContent = "-- ms";
+    elements.lastUpdated.textContent = "连接中断，等待重新采样";
+    elements.trendBars.innerHTML = '<div class="trend-empty is-error">历史采样不可用</div>';
+    elements.trendDaysWithData.textContent = "--";
+    elements.trendPercentiles.textContent = "--";
+    elements.certificateTracked.textContent = "--";
+    elements.certificateNearest.textContent = "--";
+    elements.certificateCounts.textContent = "--";
+    elements.footerState.textContent = "连接中断 · 数据不可用";
     elements.checksCount.textContent = "离线";
     elements.checksList.innerHTML = `<div class="error-state">无法连接本地控制面：${escapeHtml(error.message)}</div>`;
     elements.transitionList.innerHTML =
@@ -817,6 +845,11 @@ document.querySelectorAll(".filter").forEach((button) => {
 
 elements.checkSearch.addEventListener("input", () => {
   searchQuery = elements.checkSearch.value;
+  renderChecks();
+});
+
+elements.domainFilter.addEventListener("change", () => {
+  activeDomain = elements.domainFilter.value;
   renderChecks();
 });
 

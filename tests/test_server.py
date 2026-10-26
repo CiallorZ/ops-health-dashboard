@@ -11,6 +11,43 @@ from server import build_server
 
 
 class ServerTests(unittest.TestCase):
+    def test_shutdown_holds_lock_until_active_request_finishes(self):
+        started = threading.Event()
+        release = threading.Event()
+        original = self.server.runner.get_snapshot
+
+        def blocked_snapshot(*args, **kwargs):
+            started.set()
+            if not release.wait(5):
+                raise TimeoutError("test did not release request")
+            return original(*args, **kwargs)
+
+        def request_status():
+            with urllib.request.urlopen(self.base + "/api/status?force=1", timeout=8) as response:
+                response.read()
+
+        request = threading.Thread(target=request_status)
+        closing = threading.Thread(target=lambda: (self.server.shutdown(), self.server.server_close()))
+        with patch.object(self.server.runner, "get_snapshot", side_effect=blocked_snapshot):
+            request.start()
+            try:
+                self.assertTrue(started.wait(2))
+                closing.start()
+                closing.join(0.3)
+                self.assertTrue(closing.is_alive())
+                with self.assertRaises(InstanceLockError):
+                    InstanceLock(f"{self.temp.name}/data").acquire()
+            finally:
+                release.set()
+                request.join(6)
+                if closing.ident is not None:
+                    closing.join(6)
+        self.assertFalse(request.is_alive())
+        self.assertFalse(closing.is_alive())
+        lock = InstanceLock(f"{self.temp.name}/data")
+        lock.acquire()
+        lock.release()
+
     def test_startup_failure_releases_lock(self):
         data_dir = f"{self.temp.name}/other-data"
         with patch("server.DashboardServer", side_effect=OSError("bind failed")):
