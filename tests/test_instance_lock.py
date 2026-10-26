@@ -55,14 +55,14 @@ class PosixInstanceLockTests(unittest.TestCase):
             self.assertIn(str(os.getpid()), str(ctx.exception))
             first.release()
 
-    def test_release_removes_lock_file_and_allows_reacquire(self):
+    def test_release_keeps_lock_file_and_allows_reacquire(self):
         with TemporaryDirectory() as directory:
             lock = InstanceLock(Path(directory))
             lock.acquire()
             lock_path = lock.lock_path
             self.assertTrue(lock_path.exists())
             lock.release()
-            self.assertFalse(lock_path.exists())
+            self.assertTrue(lock_path.exists())
             lock.acquire()
             lock.release()
 
@@ -126,12 +126,15 @@ if sys.platform == "win32":
                     second.acquire()
                 first.release()
 
-        def test_release_removes_own_lock_file(self):
+        def test_release_keeps_lock_file_and_allows_reacquire(self):
             with TemporaryDirectory() as directory:
                 lock = InstanceLock(Path(directory))
                 lock.acquire()
                 lock.release()
-                self.assertFalse(lock.lock_path.exists())
+                self.assertTrue(lock.lock_path.exists())
+                second = InstanceLock(Path(directory))
+                second.acquire()
+                second.release()
 
         def test_release_does_not_delete_zero_byte_foreign_file(self):
             # A file we did not create must survive: an empty file could be a

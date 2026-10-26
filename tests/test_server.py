@@ -3,12 +3,36 @@ import threading
 import unittest
 import urllib.request
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from monitor import __version__
+from monitor.instance_lock import InstanceLock, InstanceLockError
 from server import build_server
 
 
 class ServerTests(unittest.TestCase):
+    def test_startup_failure_releases_lock(self):
+        data_dir = f"{self.temp.name}/other-data"
+        with patch("server.DashboardServer", side_effect=OSError("bind failed")):
+            with self.assertRaises(OSError):
+                build_server(
+                    host="127.0.0.1", port=0,
+                    config_path=f"{self.temp.name}/checks.json", data_dir=data_dir,
+                )
+        lock = InstanceLock(data_dir)
+        lock.acquire()
+        lock.release()
+
+    def test_second_instance_does_not_initialize_or_mutate_history(self):
+        with patch("server.HistoryStore") as history:
+            with self.assertRaises(InstanceLockError):
+                build_server(
+                    host="127.0.0.1", port=0,
+                    config_path=f"{self.temp.name}/checks.json",
+                    data_dir=f"{self.temp.name}/data",
+                )
+            history.assert_not_called()
+
     def setUp(self):
         self.temp = TemporaryDirectory()
         dashboard = f"{self.temp.name}/dashboard"

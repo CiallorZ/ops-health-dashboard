@@ -8,6 +8,12 @@ All notable changes are documented here. The format follows
 
 ## [0.13.0] - 2026-10-27
 
+### Fixed
+
+- Acquire the data-directory lock before initializing history and alert stores;
+  retain the lock file after release to prevent concurrent processes from
+  locking different files during a handover.
+
 ### Added
 
 - Declarative per-check `assertions`: each rule targets one probe metric or

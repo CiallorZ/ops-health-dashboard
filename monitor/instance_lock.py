@@ -29,14 +29,6 @@ class InstanceLock:
         handle = self._handle
         if handle is None:
             return
-        if sys.platform != "win32":
-            # While our flock is still held, a legitimate acquirer cannot have
-            # taken over the file, so a matching PID means unlink is safe.
-            if self._lock_file_is_ours():
-                try:
-                    self.lock_path.unlink()
-                except OSError:
-                    pass
         try:
             if sys.platform == "win32":
                 import msvcrt
@@ -59,20 +51,6 @@ class InstanceLock:
             except OSError:
                 pass
             self._handle = None
-        if sys.platform == "win32":
-            if self._lock_file_is_ours():
-                try:
-                    self.lock_path.unlink()
-                except OSError:
-                    pass
-
-    def _lock_file_is_ours(self) -> bool:
-        try:
-            content = self.lock_path.read_text(encoding="ascii", errors="replace").strip()
-        except OSError:
-            return False
-        return content == str(os.getpid())
-
     def _acquire_posix(self) -> None:
         import fcntl
 
@@ -101,10 +79,9 @@ class InstanceLock:
             # byte at EOF, letting two processes hold different bytes.
             handle.seek(0)
             msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
-        except OSError:
+        except OSError as exc:
             handle.close()
-            self._acquire_windows_fallback()
-            return
+            raise InstanceLockError(_owner_message(self.lock_path)) from exc
         handle.seek(0)
         handle.truncate()
         try:
@@ -114,23 +91,6 @@ class InstanceLock:
             pass
         self._handle = handle
         self._mode = "msvcrt"
-
-    def _acquire_windows_fallback(self) -> None:
-        try:
-            fd = os.open(str(self.lock_path), os.O_RDWR | os.O_CREAT | os.O_EXCL, 0o644)
-        except FileExistsError as exc:
-            raise InstanceLockError(_owner_message(self.lock_path)) from exc
-        handle = os.fdopen(fd, "r+b")
-        try:
-            handle.seek(0)
-            handle.truncate()
-            handle.write(f"{os.getpid()}\n".encode("ascii"))
-            handle.flush()
-        except OSError:
-            pass
-        self._handle = handle
-        self._mode = "o_excl"
-
 
 def _owner_message(lock_path: Path) -> str:
     pid = None

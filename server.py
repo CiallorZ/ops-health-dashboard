@@ -344,21 +344,30 @@ def build_server(
     cache_seconds: float = 8.0,
 ) -> DashboardServer:
     config = load_config(config_path)
-    history = HistoryStore(data_dir)
-    alert_dispatcher = create_alert_dispatcher(config.notifications, data_dir)
-    runner = CheckRunnerService(
-        config,
-        history,
-        cache_seconds=cache_seconds,
-        alert_dispatcher=alert_dispatcher,
-    )
-    scheduler = BackgroundMonitor(runner, config.monitor_interval_seconds)
-    server = DashboardServer((host, port), runner, Path(dashboard_dir), scheduler)
     lock = InstanceLock(Path(data_dir))
     try:
         lock.acquire()
     except InstanceLockError as exc:
         print(f"startup failed: {exc}", file=sys.stderr)
+        raise
+    alert_dispatcher = None
+    try:
+        history = HistoryStore(data_dir)
+        alert_dispatcher = create_alert_dispatcher(config.notifications, data_dir)
+        runner = CheckRunnerService(
+            config,
+            history,
+            cache_seconds=cache_seconds,
+            alert_dispatcher=alert_dispatcher,
+        )
+        scheduler = BackgroundMonitor(runner, config.monitor_interval_seconds)
+        server = DashboardServer((host, port), runner, Path(dashboard_dir), scheduler)
+    except BaseException:
+        try:
+            if alert_dispatcher is not None:
+                alert_dispatcher.close()
+        finally:
+            lock.release()
         raise
     server.hold_lock(lock)
     return server

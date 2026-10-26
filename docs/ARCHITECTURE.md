@@ -130,7 +130,7 @@ Phase A 不新增任何监控域，只做一件事：**让“多域”成为可�
 **切片**
 
 1. 单实例锁：启动时对 `<data-dir>/.sentinel.lock` 取排他锁，失败则打印持有者 PID 并以退出码 3 退出。
-   - 跨平台：POSIX 用 `fcntl.flock`，Windows 用 `msvcrt.locking`；两者都不可用时退化为 `O_CREAT|O_EXCL` 并记录降级。
+   - 跨平台：POSIX 用 `fcntl.flock`，Windows 用 `msvcrt.locking`；锁不可用时拒绝启动，锁文件持久保留以避免交接竞争。
    - 验收：同一 `data/` 启动第二个进程必须失败且不写入任何历史行；进程被 kill 后锁可回收。
 2. 端点拆分：`/healthz`（进程存活，不触发采样）、`/readyz`（配置已加载 + 数据目录可写 + 调度器在跑，
    任一不满足返回 `503` 并说明原因）、`/metrics`（Prometheus 文本格式）。
