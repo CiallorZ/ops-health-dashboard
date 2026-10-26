@@ -59,7 +59,7 @@ class ChecksTests(unittest.TestCase):
             result = run_check(check, Thresholds())
         self.assertEqual(result.status, "fail")
         self.assertEqual(result.assertions[0]["actual"], 200)
-        self.assertIn("实测 200 / 判定依据 status_code in [200]", result.detail)
+        self.assertIn("实测 200 / 判定依据 status_code in fail=[200]", result.detail)
         self.assertEqual(result.to_dict()["assertions"], result.assertions)
 
     def test_missing_assertion_metric_is_unknown_and_not_a_success(self):

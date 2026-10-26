@@ -221,7 +221,7 @@ function renderSummary(data) {
   const health = summary.health ?? "empty";
   const total = summary.total ?? 0;
   elements.scoreCard.dataset.health = health;
-  elements.scoreValue.textContent = total ? String(score) : "--";
+  elements.scoreValue.textContent = total && !summary.unknown ? String(score) : "--";
   elements.scoreState.textContent = healthLabels[health] ?? "状态未知";
   elements.scoreTotal.textContent = `${total} 项资产`;
   const risk = summary.fail

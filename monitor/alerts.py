@@ -48,7 +48,7 @@ def _event_name(previous: str | None, current: str) -> str:
         return "down" if current == "fail" else "status_change"
     if current == "fail":
         return "down"
-    if previous == "fail" and current != "fail":
+    if previous == "fail" and current in {"ok", "warn"}:
         return "recovered"
     if current == "warn":
         return "degraded"

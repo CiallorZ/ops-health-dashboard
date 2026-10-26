@@ -6,12 +6,14 @@ import json
 import math
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 
 MAX_ASSERTIONS = 8
 MAX_METRIC_LENGTH = 64
 MAX_LITERAL_LENGTH = 256
 MAX_IN_VALUES = 16
+MAX_EVIDENCE_TEXT = 256
 SUPPORTED_OPERATORS = frozenset(
     {"==", "!=", ">", ">=", "<", "<=", "in", "exists", "missing"}
 )
@@ -93,13 +95,13 @@ def parse_assertions(raw: Any, *, name: str = "assertions") -> tuple[Assertion, 
                 "digits, '_' or '-'"
             )
         op = item.get("op")
-        if op not in SUPPORTED_OPERATORS:
+        if not isinstance(op, str) or op not in SUPPORTED_OPERATORS:
             supported = ", ".join(sorted(SUPPORTED_OPERATORS))
             raise AssertionConfigError(f"{label}.op must be one of: {supported}")
         if op in {"exists", "missing"}:
             if item.get("warn") is None and item.get("fail") is None:
                 raise AssertionConfigError(f"{label} must enable warn or fail")
-        elif "warn" not in item and "fail" not in item:
+        elif item.get("warn") is None and item.get("fail") is None:
             raise AssertionConfigError(f"{label} must define warn or fail")
         parsed.append(
             Assertion(
@@ -123,7 +125,24 @@ def parse_assertions(raw: Any, *, name: str = "assertions") -> tuple[Assertion, 
 def _display(value: Any) -> str:
     if value is None:
         return "--"
-    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))[:MAX_EVIDENCE_TEXT]
+
+
+def _safe_actual(value: Any) -> Any:
+    if isinstance(value, str):
+        try:
+            parsed = urlsplit(value)
+            if parsed.scheme and parsed.netloc:
+                host = parsed.hostname or ""
+                if parsed.port:
+                    host += f":{parsed.port}"
+                value = urlunsplit((parsed.scheme, host, parsed.path, "", ""))
+        except ValueError:
+            return "[invalid URL]"
+        return value[:MAX_EVIDENCE_TEXT]
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    return "[unsupported value]"
 
 
 def _same_type(actual: Any, expected: Any) -> bool:
@@ -188,11 +207,6 @@ def evaluate_assertions(
             if assertion.metric == "latency_ms"
             else metrics.get(assertion.metric)
         )
-        actual = (
-            round(actual, 1)
-            if assertion.metric == "latency_ms" and actual is not None
-            else actual
-        )
         expected = assertion.fail if assertion.fail is not None else assertion.warn
         matched = _compare(actual, assertion.op, expected)
         if assertion.op in {"exists", "missing"}:
@@ -226,15 +240,21 @@ def evaluate_assertions(
             reason = "no assertion matched"
         criterion = f"{assertion.metric} {assertion.op}"
         if assertion.op not in {"exists", "missing"}:
-            criterion += f" {_display(expected)}"
+            parts = []
+            for level in ("warn", "fail"):
+                value = getattr(assertion, level)
+                if value is not None:
+                    parts.append(f"{level}={_display(value)}")
+            criterion += " " + " ".join(parts)
+        safe_actual = _safe_actual(actual)
         evidence.append(
             {
                 "metric": assertion.metric,
                 "op": assertion.op,
-                "actual": actual,
+                "actual": safe_actual,
                 "status": status,
                 "detail": (
-                    f"实测 {_display(actual)} / 判定依据 {criterion} · {reason}"
+                    f"实测 {_display(safe_actual)} / 判定依据 {criterion} · {reason}"
                 ),
             }
         )

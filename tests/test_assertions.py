@@ -26,7 +26,7 @@ class AssertionEvaluationTests(unittest.TestCase):
         self.assertEqual(result["status"], "unknown")
         self.assertIsNone(result["actual"])
         self.assertIn("实测 --", result["detail"])
-        self.assertIn("status_code == 200", result["detail"])
+        self.assertIn("status_code == fail=200", result["detail"])
 
     def test_incompatible_types_and_ordered_comparison_are_unknown(self):
         self.assertEqual(evaluate("status_code", "==", 200, "200")["status"], "unknown")
@@ -38,6 +38,24 @@ class AssertionEvaluationTests(unittest.TestCase):
         self.assertEqual(evaluate("status_code", ">=", 200, 200)["status"], "fail")
         self.assertEqual(evaluate("status_code", ">", 200, 200)["status"], "ok")
         self.assertEqual(evaluate("latency_ms", ">=", 100, None, latency_ms=100)["status"], "fail")
+        self.assertEqual(evaluate("latency_ms", ">=", 100, None, latency_ms=99.96)["status"], "ok")
+
+    def test_evidence_redacts_redirect_url_and_bounds_text(self):
+        result = evaluate("final_url", "in", "https://", "https://user:pass@example.test/path?token=secret#fragment")
+        self.assertEqual(result["status"], "fail")
+        self.assertEqual(result["actual"], "https://example.test/path")
+        self.assertNotIn("secret", str(result))
+        self.assertNotIn("pass", str(result))
+        result = evaluate("value", "==", "x", "a" * 10000)
+        self.assertLessEqual(len(result["actual"]), 256)
+        self.assertLess(len(result["detail"]), 700)
+
+    def test_evidence_includes_warn_and_fail_thresholds(self):
+        rule = Assertion("value", ">=", warn=5, fail=10)
+        result = evaluate_assertions((rule,), {"value": 7}, latency_ms=None)[0]
+        self.assertEqual(result["status"], "warn")
+        self.assertIn("warn=5", result["detail"])
+        self.assertIn("fail=10", result["detail"])
 
     def test_string_membership_is_literal_prefix(self):
         self.assertEqual(evaluate("common_name", "in", "api.", "api.example.test")["status"], "fail")
@@ -83,6 +101,8 @@ class AssertionConfigTests(unittest.TestCase):
             {"metric": "x", "op": "==", "fail": {"raw": 1}},
             {"metric": "x", "op": "in", "fail": []},
             {"metric": "x", "op": "exists", "fail": 1},
+            {"metric": "x", "op": [], "fail": 1},
+            {"metric": "x", "op": "==", "fail": None},
         ]
         for item in invalid:
             with self.subTest(item=item), self.assertRaises(AssertionConfigError):
