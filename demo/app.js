@@ -22,10 +22,27 @@
     {id:'n3',name:'内网 DNS 解析',target:'dns.example.test',domain:'network',status:'ok',metric:'解析耗时',value:'12 ms',history:'oooooooooooooooooooo',note:'DNS 返回模拟解析结果',last:'刚刚'},
   ];
   const statuses = {ok:'正常',warn:'预警',fail:'异常',unknown:'未知'};
+  const icons = {
+    overview:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+    all:'<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>',
+    host:'<rect x="3" y="3" width="18" height="7" rx="2"/><rect x="3" y="14" width="18" height="7" rx="2"/><path d="M7 6.5h.01M7 17.5h.01M11 6.5h7M11 17.5h7"/>',
+    network:'<circle cx="12" cy="12" r="9"/><path d="M3.5 12h17M12 3c3 3 4 6 4 9s-1 6-4 9c-3-3-4-6-4-9s1-6 4-9Z"/>',
+    database:'<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v7c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12v7c0 1.7 3.6 3 8 3s8-1.3 8-3v-7"/>',
+    middleware:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/><path d="M14 6h2a3 3 0 0 1 3 3v1M10 18H8a3 3 0 0 1-3-3v-1"/>',
+    cloud:'<path d="M12 2.5 20.5 7v10L12 21.5 3.5 17V7L12 2.5Z"/><path d="M3.5 7 12 12l8.5-5M12 12v9.5"/>',
+    events:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  };
+  const icon = key => `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${icons[key] || icons.all}</svg>`;
+  const trends = {
+    '6h': {value:'99.96', points:'0,38 25,34 50,39 75,27 100,32 125,24 150,31 175,22 200,26 225,17 250,21 280,13', labels:['6 小时前','4 小时前','2 小时前','现在']},
+    '24h': {value:'99.82', points:'0,58 24,54 47,57 70,45 94,48 117,38 140,43 163,35 186,39 210,28 233,31 256,23 280,25', labels:['00:00','06:00','12:00','18:00','现在']},
+    '7d': {value:'99.74', points:'0,48 25,38 50,46 75,35 100,43 125,29 150,34 175,24 200,33 225,25 250,19 280,22', labels:['7 天前','5 天前','3 天前','1 天前','现在']},
+  };
   let items = structuredClone(initial);
   let view = 'overview';
   let filter = 'all';
   let query = '';
+  let period = '24h';
   let sampledAt = new Date();
   let toastTimer;
   const $ = selector => document.querySelector(selector);
@@ -34,20 +51,26 @@
   const statusChip = status => `<span class="status ${esc(status)}">${statusDot(status)}${statuses[status] || '未知'}</span>`;
   const heartbeat = history => `<span class="heartbeat" aria-label="模拟历史状态">${[...history].map(ch => `<i class="${({w:'warn',f:'fail',u:'unknown'})[ch] || ''}"></i>`).join('')}</span>`;
   const toast = message => { const el = $('#toast'); el.textContent = message; el.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2300); };
+  document.querySelectorAll('.nav-item[data-view]').forEach(button => {
+    button.querySelector('.nav-symbol').innerHTML = icon(button.dataset.view);
+  });
 
   function setView(next) {
     view = next;
     filter = 'all';
     query = '';
     $('#search').value = '';
-    document.querySelectorAll('[data-filter]').forEach(button => button.classList.toggle('selected', button.dataset.filter === 'all'));
-    document.querySelectorAll('.nav-item').forEach(button => button.classList.toggle('active', button.dataset.view === next));
+    document.querySelectorAll('[data-filter]').forEach(button => { const selected = button.dataset.filter === 'all'; button.classList.toggle('selected', selected); button.setAttribute('aria-pressed', String(selected)); });
+    document.querySelectorAll('.nav-item').forEach(button => { const selected = button.dataset.view === next; button.classList.toggle('active', selected); if (selected) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); });
     const label = domains[next]?.name || ({overview:'总览',all:'全部监控',events:'事件中心'})[next] || '总览';
     $('#breadcrumb').textContent = label;
     $('#page-title').innerHTML = next === 'overview' ? '你的系统，<em>一目了然。</em>' : `${esc(label)}<em>，尽在掌握。</em>`;
     $('#page-subtitle').textContent = next === 'events' ? '查看模拟事件和受影响的监控对象。' : '集中查看基础设施与服务健康状态，让每个变化都有迹可循。';
     render();
-    if (next !== 'overview') $('#list-title').scrollIntoView({behavior:'smooth',block:'start'});
+    if (next !== 'overview') $('#list-title').scrollIntoView({
+      behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      block:'start',
+    });
   }
 
   function render() {
@@ -61,7 +84,7 @@
     $('#nav-alerts').textContent = counts.warn + counts.fail;
     document.querySelectorAll('[data-count]').forEach(node => { node.textContent = items.filter(item => item.domain === node.dataset.count).length; });
     $('#last-updated').textContent = new Intl.DateTimeFormat('zh-CN', {hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(sampledAt);
-    $('#health-number').textContent = '99.82';
+    $('#health-number').textContent = trends[period].value;
     $('#domain-grid').innerHTML = Object.entries(domains).map(([key, domain]) => {
       const group = items.filter(item => item.domain === key);
       const failed = group.filter(item => item.status === 'fail').length;
@@ -69,7 +92,7 @@
       const unknown = group.filter(item => item.status === 'unknown').length;
       const tone = failed ? 'fail' : warnings ? 'warn' : unknown ? 'unknown' : 'ok';
       const label = failed ? `${failed} 项异常` : warnings ? `${warnings} 项预警` : unknown ? `${unknown} 项未知` : group.length ? '运行正常' : '暂无对象';
-      return `<button class="domain-card" data-goto="${key}"><div class="domain-top"><span class="domain-icon ${domain.color}">${domain.icon}</span><span class="domain-name">${domain.name}</span><span class="domain-arrow">↗</span></div><div class="domain-numbers"><strong>${group.length}</strong><span>${domain.unit}</span></div><div class="domain-bottom"><span>${domain.description}</span><b>${statusDot(tone)}${label}</b></div></button>`;
+      return `<button class="domain-card" data-goto="${key}"><div class="domain-top"><span class="domain-icon ${domain.color}">${icon(key)}</span><span class="domain-name">${domain.name}</span><span class="domain-arrow">↗</span></div><div class="domain-numbers"><strong>${group.length}</strong><span>${domain.unit}</span></div><div class="domain-bottom"><span>${domain.description}</span><b>${statusDot(tone)}${label}</b></div></button>`;
     }).join('');
     const selected = items.filter(item => {
       if (domains[view] && item.domain !== view) return false;
@@ -79,12 +102,21 @@
     });
     $('#list-title').firstChild.textContent = view === 'events' ? '需关注对象 ' : domains[view] ? `${domains[view].name} ` : '监控对象 ';
     $('#list-count').textContent = selected.length;
-    $('#monitor-body').innerHTML = selected.map(item => `<tr data-detail="${esc(item.id)}" tabindex="0" role="button" aria-label="查看 ${esc(item.name)} 详情"><td><div class="asset"><span class="asset-icon ${domains[item.domain].color}">${domains[item.domain].icon}</span><span><strong>${esc(item.name)}</strong><small>${esc(item.target)}</small></span></div></td><td>${statusChip(item.status)}</td><td><span class="metric-value">${esc(item.value)}</span><span class="metric-label">${esc(item.metric)}</span></td><td>${heartbeat(item.history)}</td><td class="row-arrow">↗</td></tr>`).join('');
+    $('#monitor-body').innerHTML = selected.map(item => `<tr data-detail="${esc(item.id)}" tabindex="0" role="button" aria-label="查看 ${esc(item.name)} 详情"><td><div class="asset"><span class="asset-icon ${domains[item.domain].color}">${icon(item.domain)}</span><span><strong>${esc(item.name)}</strong><small>${esc(item.target)}</small></span></div></td><td>${statusChip(item.status)}</td><td><span class="metric-value">${esc(item.value)}</span><span class="metric-label">${esc(item.metric)}</span></td><td>${heartbeat(item.history)}</td><td class="row-arrow">↗</td></tr>`).join('');
     $('#empty').classList.toggle('hidden', selected.length !== 0);
     $('#table-summary').textContent = `显示 ${selected.length} / ${items.length} 个对象`;
     const alerts = items.filter(item => ['fail','warn'].includes(item.status));
-    $('#event-list').innerHTML = alerts.length ? alerts.slice(0, 4).map(item => `<div class="event"><span class="event-icon ${item.status === 'fail' ? 'red' : 'amber'}">${item.status === 'fail' ? '!' : '↗'}</span><div class="event-body"><strong>${esc(item.name)}</strong><p>${esc(item.note)}</p></div><time>${esc(item.last)}</time></div>`).join('') : '<div class="empty">暂无模拟事件</div>';
-    $('#health-chart').innerHTML = '<svg viewBox="0 0 280 96" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="area" x1="0" x2="0" y1="0" y2="1"><stop stop-color="#89adff" stop-opacity=".24"/><stop offset="1" stop-color="#89adff" stop-opacity="0"/></linearGradient></defs><path d="M0 58 L24 54 L47 57 L70 45 L94 48 L117 38 L140 43 L163 35 L186 39 L210 28 L233 31 L256 23 L280 25 L280 96 L0 96 Z" fill="url(#area)"/><path d="M0 58 L24 54 L47 57 L70 45 L94 48 L117 38 L140 43 L163 35 L186 39 L210 28 L233 31 L256 23 L280 25" fill="none" stroke="#648af0" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>';
+    $('#event-list').innerHTML = alerts.length ? alerts.slice(0, 4).map(item => `<button class="event" data-detail="${esc(item.id)}" aria-label="查看 ${esc(item.name)} 事件详情"><span class="event-icon ${item.status === 'fail' ? 'red' : 'amber'}">${item.status === 'fail' ? '!' : '↗'}</span><span class="event-body"><strong>${esc(item.name)}</strong><span>${esc(item.note)}</span></span><time>${esc(item.last)}</time></button>`).join('') : '<div class="empty">暂无模拟事件</div>';
+    const trend = trends[period];
+    $('#health-chart').setAttribute('aria-label', `模拟 ${period} 服务健康趋势`);
+    $('#health-chart').innerHTML = `<svg viewBox="0 0 280 96" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="area" x1="0" x2="0" y1="0" y2="1"><stop stop-color="#23bbac" stop-opacity=".28"/><stop offset="1" stop-color="#23bbac" stop-opacity="0"/></linearGradient></defs><polygon points="${trend.points} 280,96 0,96" fill="url(#area)"/><polyline points="${trend.points}" fill="none" stroke="#20b9ad" stroke-width="2.5" vector-effect="non-scaling-stroke"/></svg>`;
+    $('#chart-labels').innerHTML = trend.labels.map(label => `<span>${label}</span>`).join('');
+  }
+
+  function renderCommands() {
+    const term = $('#command-input').value.trim().toLocaleLowerCase();
+    const matches = items.filter(item => `${item.name} ${item.target} ${domains[item.domain].name}`.toLocaleLowerCase().includes(term)).slice(0, 7);
+    $('#command-results').innerHTML = matches.length ? matches.map(item => `<button class="command-result" data-command-detail="${esc(item.id)}"><span class="asset-icon ${domains[item.domain].color}">${icon(item.domain)}</span><span><strong>${esc(item.name)}</strong><small>${esc(domains[item.domain].name)} · ${esc(item.target)}</small></span>${statusChip(item.status)}<span class="command-arrow">↗</span></button>`).join('') : '<div class="empty">没有找到匹配的模拟对象</div>';
   }
 
   function detail(id) {
@@ -100,7 +132,9 @@
     if (button.dataset.view) setView(button.dataset.view);
     else if (button.dataset.goto) setView(button.dataset.goto);
     else if (button.dataset.detail) detail(button.dataset.detail);
-    else if (button.dataset.filter) { filter = button.dataset.filter; document.querySelectorAll('[data-filter]').forEach(el => el.classList.toggle('selected', el === button)); render(); }
+    else if (button.dataset.filter) { filter = button.dataset.filter; document.querySelectorAll('[data-filter]').forEach(el => { const selected = el === button; el.classList.toggle('selected', selected); el.setAttribute('aria-pressed', String(selected)); }); render(); }
+    else if (button.dataset.period) { period = button.dataset.period; document.querySelectorAll('[data-period]').forEach(el => { const selected = el === button; el.classList.toggle('selected', selected); el.setAttribute('aria-pressed', String(selected)); }); render(); }
+    else if (button.dataset.commandDetail) { $('#command-dialog').close(); detail(button.dataset.commandDetail); }
     else if (button.dataset.close) document.getElementById(button.dataset.close).close();
   });
   $('#monitor-body').addEventListener('keydown', event => { if ((event.key === 'Enter' || event.key === ' ') && event.target.dataset.detail) { event.preventDefault(); detail(event.target.dataset.detail); } });
@@ -108,6 +142,8 @@
   $('#view-all').addEventListener('click', () => setView('all'));
   $('.brand').addEventListener('click', event => { event.preventDefault(); setView('overview'); });
   $('#add-monitor').addEventListener('click', () => $('#add-dialog').showModal());
+  $('#command-open').addEventListener('click', () => { $('#command-input').value = ''; renderCommands(); $('#command-dialog').showModal(); $('#command-input').focus(); });
+  $('#command-input').addEventListener('input', renderCommands);
   $('#add-form').addEventListener('submit', event => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -120,6 +156,7 @@
   });
   $('#refresh').addEventListener('click', () => { sampledAt = new Date(); render(); toast('模拟数据已刷新，未发起监测请求'); });
   $('#reset-demo').addEventListener('click', () => { items = structuredClone(initial); sampledAt = new Date(); setView('overview'); toast('已恢复初始演示数据'); });
-  document.addEventListener('keydown', event => { if (event.key === '/' && !event.target.matches('input,textarea,select') && !document.querySelector('dialog[open]')) { event.preventDefault(); $('#search').focus(); } });
+  document.addEventListener('keydown', event => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k' && !document.querySelector('dialog[open]')) { event.preventDefault(); $('#command-open').click(); } else if (event.key === '/' && !event.target.matches('input,textarea,select') && !document.querySelector('dialog[open]')) { event.preventDefault(); $('#search').focus(); } });
+  document.querySelector('.nav-item.active').setAttribute('aria-current', 'page');
   render();
 })();
