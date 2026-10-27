@@ -8,6 +8,10 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- Add workspace navigation and clickable status summaries to the live dashboard, and rewrite the product introduction and setup guide.
+- Refresh the live dashboard with a light theme, responsive surfaces and motion-aware filter transitions.
+- Dashboard status filters expose their selected state and animate user-triggered result changes, respecting reduced-motion preferences.
+
 - Bounded system name resolution checks with observed addresses, latency,
   assertion support and history. Uses the host resolver, including hosts and
   cache; it does not test a particular DNS server or record type.
@@ -18,6 +22,7 @@ All notable changes are documented here. The format follows
 
 ### Fixed
 
+- Show the actual background scheduler state on the overview, including manual mode and connection failures.
 - Normal shutdown keeps the data-directory lock until active sampling and
   HTTP handlers finish; idle HTTP connections have a 10-second timeout.
 - Dashboard clears stale summary values on connection failure and offers a

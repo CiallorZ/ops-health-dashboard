@@ -3,13 +3,28 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="color-scheme" content="dark">
-    <meta name="theme-color" content="#0a1014">
+    <meta name="color-scheme" content="light">
+    <meta name="theme-color" content="#f3f6fa">
     <title>Sentinel / 运维健康看板</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101b1e'/%3E%3Cpath d='M8 22V15M16 22V9M24 22v-7' stroke='%23b5f36b' stroke-width='3'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
+    <div class="workspace-shell">
+    <aside class="workspace-sidebar" aria-label="工作台导航">
+      <a class="workspace-brand" href="#page-title"><span class="workspace-brand-icon">S</span><span><strong>sentinel</strong><small>运维监控工作台</small></span></a>
+      <p class="workspace-nav-label">工作台</p>
+      <nav class="workspace-nav" aria-label="页面导航">
+        <a href="#page-title" class="is-active" aria-current="location"><span aria-hidden="true">▦</span>总览</a>
+        <a href="#checks-title"><span aria-hidden="true">◫</span>监控对象</a>
+        <a href="#trend-title"><span aria-hidden="true">⌁</span>健康轨迹</a>
+        <a href="#transitions-title"><span aria-hidden="true">◷</span>状态变化</a>
+        <a href="#certificate-title"><span aria-hidden="true">◇</span>证书日历</a>
+        <a href="#automation-title"><span aria-hidden="true">⚙</span>采样与告警</a>
+        <a href="#config-title"><span aria-hidden="true">☷</span>配置与阈值</a>
+      </nav>
+      <div class="workspace-sidebar-note"><strong>本地工作台</strong><span>来自已配置检查的真实采样</span></div>
+    </aside>
     <div class="shell">
       <header class="topbar">
         <a class="brand" href="/" aria-label="Sentinel 首页">
@@ -37,18 +52,17 @@
       <main>
         <section class="hero" aria-labelledby="page-title">
           <div class="hero-copy">
-            <p class="eyebrow"><span>LIVE</span> 本地控制面</p>
-            <h1 id="page-title">把异常，<em>提前看见。</em></h1>
+            <p class="eyebrow"><span>LIVE</span> 本地监控</p>
+            <h1 id="page-title">监控总览</h1>
             <p class="hero-intro">
-              网络连通性、端口、证书、HTTP 服务与本机磁盘容量实时汇集。
-              这不是一张静态报表，而是你当前环境正在发生的事实。
+              查看已配置检查的采样结果，快速定位异常与状态变化。
             </p>
             <div class="hero-meta">
               <span id="last-updated">等待首次采样</span>
               <span class="meta-divider" aria-hidden="true"></span>
               <span>页面每 10 秒同步</span>
               <span class="meta-divider" aria-hidden="true"></span>
-              <span id="monitor-interval">后台每 60 秒采样</span>
+              <span id="monitor-interval">等待调度状态</span>
               <span class="meta-divider" aria-hidden="true"></span>
               <span id="run-duration">-- ms</span>
             </div>
@@ -60,7 +74,7 @@
                 <span></span><span></span><span></span>
               </div>
               <div class="score-content">
-                <p class="score-label">SYSTEM POSTURE</p>
+                <p class="score-label">当前检查概览</p>
                 <div class="score-value">
                   <strong id="score-value">--</strong><small>/ 100</small>
                 </div>
@@ -75,30 +89,30 @@
         </section>
 
         <section class="metrics" aria-label="检测汇总">
-          <article class="metric" data-tone="ok">
+          <button type="button" class="metric metric-action" data-tone="ok" data-summary-filter="ok">
             <div class="metric-heading">
               <span>正常</span>
               <span class="metric-symbol" aria-hidden="true">/</span>
             </div>
             <strong id="metric-ok">--</strong>
             <p>通过当前配置的检查</p>
-          </article>
-          <article class="metric" data-tone="warn">
+          </button>
+          <button type="button" class="metric metric-action" data-tone="warn" data-summary-filter="warn">
             <div class="metric-heading">
               <span>预警</span>
               <span class="metric-symbol" aria-hidden="true">!</span>
             </div>
             <strong id="metric-warn">--</strong>
             <p>需要关注但尚未失效</p>
-          </article>
-          <article class="metric" data-tone="fail">
+          </button>
+          <button type="button" class="metric metric-action" data-tone="fail" data-summary-filter="fail">
             <div class="metric-heading">
               <span>异常</span>
               <span class="metric-symbol" aria-hidden="true">×</span>
             </div>
             <strong id="metric-fail">--</strong>
             <p>请求失败或超过红线</p>
-          </article>
+          </button>
           <article class="metric metric-latency" data-tone="neutral">
             <div class="metric-heading">
               <span>平均延迟</span>
@@ -141,11 +155,11 @@
                 </select>
               </label>
               <div class="filter-bar" role="group" aria-label="筛选检测结果">
-                <button class="filter is-active" type="button" data-filter="all">全部</button>
-                <button class="filter" type="button" data-filter="fail">异常</button>
-                <button class="filter" type="button" data-filter="warn">预警</button>
-                <button class="filter" type="button" data-filter="ok">正常</button>
-                <button class="filter" type="button" data-filter="unknown">未知</button>
+                <button class="filter is-active" type="button" data-filter="all" aria-pressed="true">全部</button>
+                <button class="filter" type="button" data-filter="fail" aria-pressed="false">异常</button>
+                <button class="filter" type="button" data-filter="warn" aria-pressed="false">预警</button>
+                <button class="filter" type="button" data-filter="ok" aria-pressed="false">正常</button>
+                <button class="filter" type="button" data-filter="unknown" aria-pressed="false">未知</button>
               </div>
             </div>
             <div class="checks-list" id="checks-list" aria-live="polite">
@@ -295,6 +309,7 @@
         <span>Zero-dependency / Python standard library</span>
         <span id="footer-state">本地数据 · 不采集凭据</span>
       </footer>
+    </div>
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
