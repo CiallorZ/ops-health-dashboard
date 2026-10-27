@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import ipaddress
 import socket
 import ssl
 import subprocess
@@ -70,6 +71,51 @@ class CheckExecutionError(RuntimeError):
 def _validate_ping(check: CheckConfig) -> None:
     if not check.target.strip():
         raise CheckExecutionError("ping 检查缺少目标主机")
+
+
+def _validate_dns(check: CheckConfig) -> None:
+    if not check.target.strip():
+        raise CheckExecutionError("名称解析检查缺少目标主机")
+
+
+def _run_dns(check: CheckConfig, thresholds: Thresholds) -> CheckResult:
+    """Resolve through the system resolver in a process with a hard deadline."""
+    if getattr(sys, "frozen", False):
+        raise CheckExecutionError("此打包运行环境不支持名称解析子进程")
+    code = (
+        "import json,socket,sys,time; "
+        "s=time.perf_counter(); "
+        "r=socket.getaddrinfo(sys.argv[1],None,type=socket.SOCK_STREAM); "
+        "t=(time.perf_counter()-s)*1000; "
+        "print(json.dumps([t,sorted({x[4][0] for x in r})[:16]]))"
+    )
+    try:
+        completed = subprocess.run(
+            [sys.executable, "-I", "-c", code, check.target],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            timeout=check.timeout_seconds, check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise CheckExecutionError("系统名称解析超时") from exc
+    except OSError as exc:
+        raise CheckExecutionError("无法启动名称解析") from exc
+    if completed.returncode != 0:
+        raise CheckExecutionError("系统名称解析失败")
+    try:
+        latency, addresses = json.loads(completed.stdout)
+        if isinstance(latency, bool) or not isinstance(latency, (int, float)) or not 0 <= latency < float("inf"):
+            raise ValueError
+        if not isinstance(addresses, list) or not 1 <= len(addresses) <= 16:
+            raise ValueError
+        if any(not isinstance(value, str) or len(value) > 64 or str(ipaddress.ip_address(value)) != value for value in addresses):
+            raise ValueError
+    except (ValueError, TypeError, UnicodeDecodeError) as exc:
+        raise CheckExecutionError("名称解析返回无效结果") from exc
+    status, note = _latency_status(latency, thresholds)
+    return _base_result(check, status=status, summary="名称解析成功",
+                        detail=f"系统解析器返回地址：显示 {len(addresses)} 个（上限 16）；{note}",
+                        latency_ms=latency, metrics={"addresses": addresses, "address_count": len(addresses)})
 
 
 def _validate_tcp(check: CheckConfig) -> None:
@@ -413,6 +459,7 @@ def _validate_probe_contract(name: str, probe: Probe) -> None:
 
 
 PROBES: dict[str, Probe] = {
+    "dns": Probe(validate=_validate_dns, run=_run_dns, domain="network"),
     "disk": Probe(validate=_validate_disk, run=_run_disk, domain="host"),
     "ping": Probe(validate=_validate_ping, run=_run_ping, domain="network"),
     "tcp": Probe(validate=_validate_tcp, run=_run_tcp, domain="network"),

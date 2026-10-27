@@ -122,6 +122,12 @@ class CheckRunnerService:
                                 ) if name in result.metrics}}
                                 if result.type == "disk" else {}
                             ),
+                            **(
+                                {"metrics": {name: result.metrics[name] for name in (
+                                    "addresses", "address_count"
+                                ) if name in result.metrics}}
+                                if result.type == "dns" else {}
+                            ),
                         }
                         for result in results
                     ],

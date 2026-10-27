@@ -215,7 +215,7 @@ python server.py --no-scheduler
 |---|---|
 | `id` | 唯一标识，只能使用字母、数字、`-`、`_` |
 | `monitor_interval_seconds` | 后台采样周期，范围 `10–3600` 秒，默认 `60` |
-| `type` | `http` / `tcp` / `tls` / `ping` / `disk` |
+| `type` | `http` / `tcp` / `tls` / `ping` / `disk` / `dns` |
 | `target` | HTTP 为完整 URL；`disk` 为本机绝对路径；其他类型为主机名或 IP |
 | `port` | `tcp` 必填；`tls` 默认 `443` |
 | `expected_status` | HTTP 可接受状态码，默认 `[200]` |
@@ -261,6 +261,14 @@ python server.py --no-scheduler
 ```
 
 Linux 可将 `target` 设为 `/` 或明确授权的绝对目录；`domain` 默认为 `host`。容量由独立的标准库子进程读取，超时或路径不可读记为失败；没有断言时，采集成功不等同容量健康，状态为 `unknown`。`total_bytes`、`used_bytes`、`free_bytes` 和 `free_percent` 可用于断言、历史和 `/metrics`。不读取文件内容，不自动发现磁盘；不要配置未经授权的挂载路径。冻结式打包运行环境暂不支持该子进程方式。
+
+### 系统名称解析探测（开发分支）
+
+```json
+{"id":"local-name","name":"本机名称解析","type":"dns","target":"localhost","timeout_seconds":3}
+```
+
+`dns` 使用运行 Sentinel 的操作系统名称解析器，可能命中 hosts 文件或缓存；成功不代表某个指定 DNS 服务器可用，也不验证特定记录类型、TTL 或权威答案。解析耗时按现有延迟阈值判定；独立子进程受 `timeout_seconds` 限制。结果与历史最多保留 16 个地址，`address_count` 是保留的地址数而非完整记录总数。此类型不支持指定 `port`，冻结式打包环境暂不支持此探测。
 
 ## API
 
