@@ -18,6 +18,7 @@ const elements = {
   checksList: document.querySelector("#checks-list"),
   checksCount: document.querySelector("#checks-count"),
   checkSearch: document.querySelector("#check-search"),
+  domainFilter: document.querySelector("#domain-filter"),
   trendBars: document.querySelector("#trend-bars"),
   transitionList: document.querySelector("#transition-list"),
   monitorInterval: document.querySelector("#monitor-interval"),
@@ -53,16 +54,18 @@ const elements = {
 };
 
 let activeFilter = "all";
+let activeDomain = "all";
 let searchQuery = "";
 let latestStatus = null;
 let loading = false;
 let toastTimer = null;
 
 const healthLabels = {
-  healthy: "系统稳定",
+  healthy: "当前检查正常",
   degraded: "存在预警",
   critical: "需要处置",
   empty: "没有启用检查",
+  unknown: "部分状态未知",
   loading: "正在采集",
 };
 
@@ -220,12 +223,14 @@ function renderSummary(data) {
   const health = summary.health ?? "empty";
   const total = summary.total ?? 0;
   elements.scoreCard.dataset.health = health;
-  elements.scoreValue.textContent = total ? String(score) : "--";
+  elements.scoreValue.textContent = total && !summary.unknown ? String(score) : "--";
   elements.scoreState.textContent = healthLabels[health] ?? "状态未知";
   elements.scoreTotal.textContent = `${total} 项资产`;
   const risk = summary.fail
     ? `${summary.fail} 项需要处置`
-    : summary.warn
+    : summary.unknown
+      ? `${summary.unknown} 项缺少判定依据`
+      : summary.warn
       ? `${summary.warn} 项待观察`
       : total
         ? "没有发现异常"
@@ -249,7 +254,7 @@ function renderSummary(data) {
 }
 
 function renderCheck(check) {
-  const status = ["ok", "warn", "fail"].includes(check.status)
+  const status = ["ok", "warn", "fail", "unknown"].includes(check.status)
     ? check.status
     : "unknown";
   const attempts = Number(check.metrics?.attempts ?? 1);
@@ -278,7 +283,7 @@ function renderCheck(check) {
         aria-label="${escapeHtml(`${samples} 轮历史，可用率 ${formatPercent(availability)}`)}"
       >
         ${heartbeats.map((sample) => {
-          const sampleStatus = ["ok", "warn", "fail"].includes(sample.status)
+          const sampleStatus = ["ok", "warn", "fail", "unknown"].includes(sample.status)
             ? sample.status
             : "unknown";
           const latency = Number.isFinite(sample.latency_ms)
@@ -322,9 +327,16 @@ function renderCheck(check) {
 }
 
 function renderChecks() {
+  if (!latestStatus) return;
   const checks = latestStatus?.checks ?? [];
+  const domains = [...new Set(checks.map((check) => check.domain || "network"))].sort();
+  if (activeDomain !== "all" && !domains.includes(activeDomain)) activeDomain = "all";
+  elements.domainFilter.innerHTML = '<option value="all">全部域</option>' +
+    domains.map((domain) => `<option value="${escapeHtml(domain)}">${escapeHtml(domain)}</option>`).join("");
+  elements.domainFilter.value = activeDomain;
   const query = searchQuery.trim().toLocaleLowerCase("zh-CN");
   const filtered = checks.filter((check) => {
+    if (activeDomain !== "all" && (check.domain || "network") !== activeDomain) return false;
     if (activeFilter !== "all" && check.status !== activeFilter) return false;
     if (!query) return true;
     const haystack = [
@@ -341,7 +353,7 @@ function renderChecks() {
 
   if (!filtered.length) {
     elements.checksList.innerHTML = checks.length
-      ? '<div class="empty-state">没有匹配的检查，试试清除搜索或切换状态。</div>'
+      ? '<div class="empty-state">没有匹配的检查，试试清除搜索或切换筛选。</div>'
       : '<div class="empty-state">没有可展示的检测结果</div>';
     return;
   }
@@ -401,7 +413,7 @@ function renderTrend(history) {
   elements.trendBars.innerHTML = items.map((item) => {
     const ratio = item.total ? (item.ok / item.total) : 0;
     const height = Math.max(8, Math.round(ratio * 76));
-    const health = ["healthy", "degraded", "critical"].includes(item.health)
+    const health = ["healthy", "degraded", "critical", "unknown"].includes(item.health)
       ? item.health
       : "degraded";
     const label = `${formatTime(item.generated_at)} · ${item.ok}/${item.total} 正常`;
@@ -436,12 +448,14 @@ function renderLongTrend(trends) {
   elements.longTrendList.innerHTML = daily.map(([day, item]) => {
     const availability = Number.isFinite(item.availability_percent)
       ? item.availability_percent
-      : 0;
+      : null;
     const tone = item.fail
       ? "critical"
       : item.warn
         ? "degraded"
-        : "healthy";
+        : item.unknown
+          ? "unknown"
+          : "healthy";
     return `
       <article class="long-trend-row" data-tone="${escapeHtml(tone)}">
         <div class="long-trend-head">
@@ -449,7 +463,7 @@ function renderLongTrend(trends) {
           <span>${escapeHtml(`${item.samples} 次采样 · 可用率 ${formatPercent(availability)}`)}</span>
         </div>
         <div class="long-trend-bar" aria-hidden="true">
-          <i style="width:${Math.max(2, Math.round(availability))}%"></i>
+          <i style="width:${availability === null ? 0 : Math.max(2, Math.round(availability))}%"></i>
         </div>
         <div class="long-trend-meta">
           <span>p50 ${escapeHtml(formatLatency(item.p50_latency_ms))}</span>
@@ -556,6 +570,10 @@ function renderAutomation(data) {
   renderRetention(automation.retention);
   const running = Boolean(scheduler.running);
   const failed = Boolean(scheduler.last_error);
+  const interval = Number(scheduler.interval_seconds);
+  elements.monitorInterval.textContent = failed ? "后台调度异常" : running
+    ? `后台每 ${formatInterval(interval)}采样` : scheduler.running === false
+      ? "后台采样未启动" : "后台采样状态未知";
   elements.schedulerState.dataset.state = failed ? "fail" : running ? "ok" : "idle";
   elements.schedulerState.textContent = failed
     ? "调度异常"
@@ -685,8 +703,6 @@ function renderConfig(config) {
   elements.thresholdLatencyFail.textContent = `${formatNumber(thresholds.latency_fail_ms)} ms`;
   elements.thresholdTlsWarn.textContent = `${formatNumber(thresholds.tls_warn_days)} 天`;
   elements.thresholdTlsFail.textContent = `${formatNumber(thresholds.tls_fail_days)} 天`;
-  elements.monitorInterval.textContent =
-    `后台每 ${formatInterval(Number(config?.monitor_interval_seconds))}采样`;
   const budget = config?.domain_budget ?? {};
   const defaultWorkers = Number(budget.default);
   const overrides = Object.entries(budget).filter(
@@ -772,6 +788,29 @@ async function loadStatus({ force = false } = {}) {
     if (force) showToast("已刷新全部检测");
   } catch (error) {
     setConnection("fail", "离线");
+    latestStatus = null;
+    elements.scoreCard.dataset.health = "unknown";
+    elements.scoreValue.textContent = "--";
+    elements.scoreState.textContent = "连接中断";
+    elements.scoreRisk.textContent = "数据不可用";
+    elements.scoreTotal.textContent = "-- 项资产";
+    elements.metricOk.textContent = "--";
+    elements.metricWarn.textContent = "--";
+    elements.metricFail.textContent = "--";
+    elements.metricLatency.textContent = "--";
+    elements.runDuration.textContent = "-- ms";
+    elements.monitorInterval.textContent = "后台采样状态不可用";
+    elements.schedulerInterval.textContent = "--";
+    elements.schedulerLast.textContent = "--";
+    elements.schedulerNext.textContent = "--";
+    elements.lastUpdated.textContent = "连接中断，等待重新采样";
+    elements.trendBars.innerHTML = '<div class="trend-empty is-error">历史采样不可用</div>';
+    elements.trendDaysWithData.textContent = "--";
+    elements.trendPercentiles.textContent = "--";
+    elements.certificateTracked.textContent = "--";
+    elements.certificateNearest.textContent = "--";
+    elements.certificateCounts.textContent = "--";
+    elements.footerState.textContent = "连接中断 · 数据不可用";
     elements.checksCount.textContent = "离线";
     elements.checksList.innerHTML = `<div class="error-state">无法连接本地控制面：${escapeHtml(error.message)}</div>`;
     elements.transitionList.innerHTML =
@@ -800,19 +839,58 @@ async function loadStatus({ force = false } = {}) {
   }
 }
 
+function animateResults() {
+  if (typeof elements.checksList.animate !== "function" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  elements.checksList.getAnimations().forEach((animation) => animation.cancel());
+  elements.checksList.animate([{opacity: 0.35, transform: "translateY(5px)"}, {opacity: 1, transform: "translateY(0)"}], {duration: 180, easing: "ease-out"});
+}
+
+document.querySelectorAll(".workspace-nav a").forEach((link) => {
+  link.addEventListener("click", () => {
+    document.querySelectorAll(".workspace-nav a").forEach((item) => {
+      const selected = item === link;
+      item.classList.toggle("is-active", selected);
+      if (selected) item.setAttribute("aria-current", "location");
+      else item.removeAttribute("aria-current");
+    });
+  });
+});
+
 document.querySelectorAll(".filter").forEach((button) => {
   button.addEventListener("click", () => {
     activeFilter = button.dataset.filter ?? "all";
     document.querySelectorAll(".filter").forEach((item) => {
       item.classList.toggle("is-active", item === button);
+      item.setAttribute("aria-pressed", String(item === button));
     });
     renderChecks();
+    animateResults();
+  });
+});
+
+document.querySelectorAll("[data-summary-filter]").forEach((button) => {
+  button.addEventListener("click", () => {
+    activeDomain = "all";
+    searchQuery = "";
+    elements.checkSearch.value = "";
+    const filter = document.querySelector(`.filter[data-filter="${button.dataset.summaryFilter}"]`);
+    if (filter) filter.click();
+    document.querySelector("#checks-title").scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      block: "start",
+    });
   });
 });
 
 elements.checkSearch.addEventListener("input", () => {
   searchQuery = elements.checkSearch.value;
   renderChecks();
+});
+
+elements.domainFilter.addEventListener("change", () => {
+  activeDomain = elements.domainFilter.value;
+  renderChecks();
+  animateResults();
 });
 
 elements.refreshButton.addEventListener("click", () => loadStatus({ force: true }));

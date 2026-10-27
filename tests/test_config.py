@@ -39,6 +39,25 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(check.group, "核心 服务")
         self.assertEqual(check.public_dict()["group"], "核心 服务")
 
+    def test_assertions_are_validated_and_exposed_without_changing_defaults(self):
+        self.assertEqual(parse_config(MINIMAL).checks[0].assertions, ())
+        raw = json.loads(json.dumps(MINIMAL))
+        raw["checks"][0]["assertions"] = [
+            {"metric": "status_code", "op": "in", "fail": [500, 503]},
+            {"metric": "latency_ms", "op": ">=", "warn": 500},
+        ]
+        check = parse_config(raw).checks[0]
+        self.assertEqual(check.assertions[0].fail, [500, 503])
+        self.assertEqual(
+            check.public_dict()["assertions"][1],
+            {"metric": "latency_ms", "op": ">=", "warn": 500},
+        )
+        raw["checks"][0]["assertions"] = [
+            {"metric": "status_code", "op": "matches", "fail": ".*"}
+        ]
+        with self.assertRaisesRegex(ConfigError, "must be one of"):
+            parse_config(raw)
+
     def test_group_must_be_a_short_non_empty_string(self):
         for value, message in (("   ", "must not be empty"), (42, "must be a string")):
             raw = json.loads(json.dumps(MINIMAL))

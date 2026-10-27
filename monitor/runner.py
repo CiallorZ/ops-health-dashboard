@@ -111,6 +111,23 @@ class CheckRunnerService:
                                 if result.latency_ms is not None
                                 else None
                             ),
+                            **(
+                                {"assertions": result.assertions}
+                                if result.assertions
+                                else {}
+                            ),
+                            **(
+                                {"metrics": {name: result.metrics[name] for name in (
+                                    "total_bytes", "used_bytes", "free_bytes", "free_percent"
+                                ) if name in result.metrics}}
+                                if result.type == "disk" else {}
+                            ),
+                            **(
+                                {"metrics": {name: result.metrics[name] for name in (
+                                    "addresses", "address_count"
+                                ) if name in result.metrics}}
+                                if result.type == "dns" else {}
+                            ),
                         }
                         for result in results
                     ],
@@ -202,6 +219,12 @@ class CheckRunnerService:
             latency = check.get("latency_ms")
             if latency is not None:
                 lines.append("sentinel_check_latency_ms{" + labels + "} " + str(latency))
+            if check.get("type") == "disk":
+                metrics = check.get("metrics", {})
+                for name in ("total_bytes", "used_bytes", "free_bytes", "free_percent"):
+                    value = metrics.get(name)
+                    if isinstance(value, (int, float)) and not isinstance(value, bool):
+                        lines.append("sentinel_disk_" + name + "{" + labels + "} " + str(value))
         stats = self.history.stats()
         lines.append("sentinel_history_bytes " + str(stats["current_bytes"]))
         lines.append("sentinel_history_max_bytes " + str(stats["max_file_bytes"]))
@@ -267,7 +290,7 @@ class CheckRunnerService:
 
     @staticmethod
     def _summarize(results: list[CheckResult]) -> dict:
-        counts = {"ok": 0, "warn": 0, "fail": 0}
+        counts = {"ok": 0, "warn": 0, "fail": 0, "unknown": 0}
         for result in results:
             if result.status in counts:
                 counts[result.status] += 1
@@ -275,6 +298,8 @@ class CheckRunnerService:
             health = "critical"
         elif counts["warn"]:
             health = "degraded"
+        elif counts["unknown"]:
+            health = "unknown"
         elif results:
             health = "healthy"
         else:
@@ -285,6 +310,7 @@ class CheckRunnerService:
             "ok": counts["ok"],
             "warn": counts["warn"],
             "fail": counts["fail"],
+            "unknown": counts["unknown"],
         }
 
     def _with_history(

@@ -5,13 +5,14 @@ from __future__ import annotations
 import bisect
 import json
 import math
+import tempfile
 import threading
 from collections import deque
 from datetime import date
 from pathlib import Path
 from typing import Any
 
-CHECK_STATUSES = frozenset({"ok", "warn", "fail"})
+CHECK_STATUSES = frozenset({"ok", "warn", "fail", "unknown"})
 MAX_HISTORY_CHECKS_PER_RUN = 200
 MAX_TRANSITION_EVENTS = 8
 MAX_TREND_DAYS = 30
@@ -104,6 +105,7 @@ def _daily_entry() -> dict[str, Any]:
         "ok": 0,
         "warn": 0,
         "fail": 0,
+        "unknown": 0,
         "histogram": [0] * (len(LATENCY_BUCKETS) + 1),
         "latency_samples": 0,
     }
@@ -114,8 +116,11 @@ def _finalize_daily(entry: dict[str, Any]) -> dict[str, Any]:
     histogram = entry.pop("histogram")
     latency_samples = entry.pop("latency_samples")
     entry["samples"] = samples
+    measured_samples = samples - entry["unknown"]
     entry["availability_percent"] = (
-        round((entry["ok"] + entry["warn"]) / samples * 100, 1) if samples else None
+        round((entry["ok"] + entry["warn"]) / measured_samples * 100, 1)
+        if measured_samples
+        else None
     )
     entry["p50_latency_ms"] = _percentile(histogram, latency_samples, 0.5)
     entry["p95_latency_ms"] = _percentile(histogram, latency_samples, 0.95)
@@ -142,6 +147,7 @@ def _finalize_check(
             "ok": sum(item["ok"] for item in daily.values()),
             "warn": sum(item["warn"] for item in daily.values()),
             "fail": sum(item["fail"] for item in daily.values()),
+            "unknown": sum(item["unknown"] for item in daily.values()),
         },
     }
 
@@ -198,6 +204,11 @@ def summarize_check_history(
                 "status": status,
                 "latency_ms": _latency(raw_check.get("latency_ms")),
                 "at": generated_at,
+                "assertions": (
+                    raw_check["assertions"]
+                    if isinstance(raw_check.get("assertions"), list)
+                    else []
+                ),
             }
             samples_by_id[check_id].append(sample)
 
@@ -221,7 +232,7 @@ def summarize_check_history(
     for check_id, samples in samples_by_id.items():
         if not samples:
             continue
-        counts = {"ok": 0, "warn": 0, "fail": 0}
+        counts = {"ok": 0, "warn": 0, "fail": 0, "unknown": 0}
         latencies: list[float] = []
         for sample in samples:
             counts[sample["status"]] += 1
@@ -231,9 +242,15 @@ def summarize_check_history(
         summaries[check_id] = {
             "window": bounded,
             "samples": sample_count,
-            "availability_percent": round(
-                (counts["ok"] + counts["warn"]) / sample_count * 100,
-                1,
+            "availability_percent": (
+                round(
+                    (counts["ok"] + counts["warn"])
+                    / (sample_count - counts["unknown"])
+                    * 100,
+                    1,
+                )
+                if sample_count > counts["unknown"]
+                else None
             ),
             "average_latency_ms": (
                 round(sum(latencies) / len(latencies), 1) if latencies else None
@@ -528,6 +545,19 @@ class HistoryStore:
         bounded = max(1, min(int(limit), self.max_memory))
         with self._lock:
             return list(self._items)[-bounded:]
+
+    def check_writable(self) -> None:
+        """Probe the directory and existing history file without changing history."""
+        with self._lock:
+            with tempfile.TemporaryFile(dir=self.data_dir, mode="w+b") as probe:
+                probe.write(b"\0")
+                probe.flush()
+            try:
+                self.path.stat()
+            except FileNotFoundError:
+                return
+            with self.path.open("ab"):
+                pass
 
     # ------------------------------------------------------------------ stats
     def stats(self) -> dict[str, Any]:

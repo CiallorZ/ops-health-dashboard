@@ -54,8 +54,14 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(
             second["history"][-1]["checks"],
             [
-                {"id": "a", "domain": "network", "status": "ok", "latency_ms": 12.5},
-                {"id": "b", "domain": "network", "status": "ok", "latency_ms": 12.5},
+                {
+                    "id": "a", "domain": "network", "status": "ok",
+                    "latency_ms": 12.5,
+                },
+                {
+                    "id": "b", "domain": "network", "status": "ok",
+                    "latency_ms": 12.5,
+                },
             ],
         )
         self.assertEqual(second["check_history"]["checks"]["a"]["samples"], 2)
@@ -64,6 +70,33 @@ class RunnerTests(unittest.TestCase):
             100.0,
         )
         self.assertNotIn("target", second["history"][-1]["checks"][0])
+
+    def test_assertion_evidence_and_unknown_status_survive_history(self):
+        evidence = [{"metric": "x", "op": "==", "actual": None,
+                     "status": "unknown", "detail": "实测 -- / 判定依据 x == 1"}]
+
+        def unknown_check(check, _thresholds):
+            result = fake_check(check, _thresholds)
+            result.status = "unknown"
+            result.assertions = evidence
+            return result
+
+        with TemporaryDirectory() as directory:
+            config = DashboardConfig(
+                version=1, thresholds=Thresholds(),
+                checks=(CheckConfig(id="a", name="A", type="ping", target="127.0.0.1"),),
+            )
+            runner = CheckRunnerService(config, HistoryStore(directory), check_runner=unknown_check)
+            snapshot = runner.get_snapshot(
+                force=True, history_limit=40, trend_days=7
+            )
+            restored = HistoryStore(directory).recent()
+        self.assertEqual(snapshot["summary"]["health"], "unknown")
+        self.assertEqual(snapshot["history"][-1]["checks"][0]["assertions"], evidence)
+        self.assertEqual(restored[-1]["checks"][0]["assertions"], evidence)
+        self.assertEqual(snapshot["check_history"]["checks"]["a"]["heartbeats"][0]["assertions"], evidence)
+        self.assertIsNone(snapshot["check_history"]["checks"]["a"]["availability_percent"])
+        self.assertIsNone(snapshot["trends"]["daily"][snapshot["generated_at"][:10]]["availability_percent"])
 
     def test_cache_reuses_snapshot(self):
         with TemporaryDirectory() as directory:

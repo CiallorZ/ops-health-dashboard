@@ -26,13 +26,15 @@ git diff --check
 | 文件 | 关注点 |
 |---|---|
 | `tests/test_checks.py` | HTTP 状态码、跳转、TLS 边界、User-Agent 版本 |
+| `tests/test_disk.py` | 本地磁盘真实采样、路径及域校验、断言/历史/指标贯通、超时与错误路径 |
 | `tests/test_config.py` | 默认值、分组、重试边界、凭据拒绝、重复 ID |
+| `tests/test_assertions.py` | 断言配置上限/字面量校验、缺失指标、类型不符、边界值、状态优先级 |
 | `tests/test_history.py` | 逐项可用率、延迟聚合、旧历史兼容、事件数量上限；真实 UTC 日趋势聚合、p50/p95、缺失日期不补造；历史单文件/归档上限、轮转链、超限压缩、零归档删除、畸形行跳过 |
 | `tests/test_certificates.py` | 证书分级、按剩余天数排序、上限裁剪、过期与窗口边界、陈旧值重算、缺失与畸形指标跳过、链验证标记 |
 | `tests/test_alerts.py` | Webhook 本地替身、HMAC 签名、冷却抑制、重试上限、秘密脱敏 |
 | `tests/test_maintenance.py` | 维护窗口校验（时区偏移、跨度、ID、作用域）、状态机、只统计现有检查、告警抑制入账与运行器接线 |
 | `tests/test_scheduler.py` | 后台循环采样、异常记录、停止与状态快照 |
-| `tests/test_runner.py` | 缓存、强制刷新、并发去重、受限重试与恢复证据 |
+| `tests/test_runner.py` | 缓存、强制刷新、并发去重、受限重试与恢复证据；断言证据入历史与 unknown 可用率边界 |
 | `tests/test_server.py` | 健康接口、版本头、404、静态页、报告脱敏 |
 | `tests/test_report.py` | `0` 值渲染、重试证据、旧快照缺省值 |
 | `tests/test_ui_contract.py` | 前端 API 引用、转义、无障碍钩子、版本一致性 |
@@ -49,7 +51,7 @@ API / UI 改动需要在非 `8080` 的临时端口启动真实服务：
 4. 配置受限重试的目标显示实际尝试次数与恢复标记；
 5. `/api/report` 可下载且包含证据边界；
 6. 每项 heartbeat 数量不超过历史窗口，可用率来自实际采样；
-7. 搜索名称 / 目标 / 分组 / 标签与 `ok / warn / fail` 筛选均生效；
+7. 搜索名称 / 目标 / 分组 / 标签与 `ok / warn / fail / unknown` 筛选均生效；
 8. 状态变化事件只在相邻真实状态不同的时候出现；
 9. 桌面与 390 px 移动端无横向溢出，空状态与错误状态可读；
 10. 结束后停止全部临时进程。

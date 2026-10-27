@@ -9,6 +9,7 @@ from tempfile import TemporaryDirectory
 from monitor.alerts import (
     AlertDispatcher,
     AlertStore,
+    _event_name,
     resolve_notification_settings,
 )
 from monitor.checks import CheckResult, isoformat, utc_now
@@ -64,6 +65,10 @@ def result(status="fail"):
 
 
 class AlertTests(unittest.TestCase):
+    def test_unknown_does_not_claim_recovery(self):
+        self.assertEqual(_event_name("fail", "unknown"), "status_change")
+        self.assertEqual(_event_name("fail", "ok"), "recovered")
+
     def setUp(self):
         CaptureHandler.reset([204])
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), CaptureHandler)

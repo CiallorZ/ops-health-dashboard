@@ -15,6 +15,30 @@ class FakeRunner:
 
 
 class SchedulerTests(unittest.TestCase):
+    def test_stop_waits_until_inflight_run_finishes(self):
+        started = threading.Event()
+        release = threading.Event()
+
+        class BlockingRunner:
+            def get_snapshot(self, **_kwargs):
+                started.set()
+                release.wait(5)
+                return {"run_id": "done"}
+
+        scheduler = BackgroundMonitor(BlockingRunner(), interval_seconds=0.05)
+        scheduler.start()
+        self.assertTrue(started.wait(2))
+        stopping = threading.Thread(target=scheduler.stop)
+        stopping.start()
+        try:
+            stopping.join(0.15)
+            self.assertTrue(stopping.is_alive())
+        finally:
+            release.set()
+            stopping.join(2)
+        self.assertFalse(stopping.is_alive())
+        self.assertFalse(scheduler.status()["running"])
+
     def test_background_loop_samples_and_stops(self):
         runner = FakeRunner()
         scheduler = BackgroundMonitor(runner, interval_seconds=0.05)

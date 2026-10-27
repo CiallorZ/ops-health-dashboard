@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
+import ipaddress
 import socket
 import ssl
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -12,8 +15,10 @@ from urllib.parse import urlparse
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, NamedTuple
+from pathlib import Path
 
 from . import __version__
+from .assertions import assertion_status, evaluate_assertions
 from .config import SUPPORTED_DOMAINS, CheckConfig, Thresholds
 
 USER_AGENT = f"ops-health-dashboard/{__version__}"
@@ -35,6 +40,7 @@ class CheckResult:
     tags: tuple[str, ...] = ()
     metrics: dict[str, Any] = field(default_factory=dict)
     domain: str = "network"
+    assertions: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -54,6 +60,7 @@ class CheckResult:
             "tags": list(self.tags),
             "metrics": self.metrics,
             "domain": self.domain,
+            "assertions": self.assertions,
         }
 
 
@@ -64,6 +71,51 @@ class CheckExecutionError(RuntimeError):
 def _validate_ping(check: CheckConfig) -> None:
     if not check.target.strip():
         raise CheckExecutionError("ping 检查缺少目标主机")
+
+
+def _validate_dns(check: CheckConfig) -> None:
+    if not check.target.strip():
+        raise CheckExecutionError("名称解析检查缺少目标主机")
+
+
+def _run_dns(check: CheckConfig, thresholds: Thresholds) -> CheckResult:
+    """Resolve through the system resolver in a process with a hard deadline."""
+    if getattr(sys, "frozen", False):
+        raise CheckExecutionError("此打包运行环境不支持名称解析子进程")
+    code = (
+        "import json,socket,sys,time; "
+        "s=time.perf_counter(); "
+        "r=socket.getaddrinfo(sys.argv[1],None,type=socket.SOCK_STREAM); "
+        "t=(time.perf_counter()-s)*1000; "
+        "print(json.dumps([t,sorted({x[4][0] for x in r})[:16]]))"
+    )
+    try:
+        completed = subprocess.run(
+            [sys.executable, "-I", "-c", code, check.target],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            timeout=check.timeout_seconds, check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise CheckExecutionError("系统名称解析超时") from exc
+    except OSError as exc:
+        raise CheckExecutionError("无法启动名称解析") from exc
+    if completed.returncode != 0:
+        raise CheckExecutionError("系统名称解析失败")
+    try:
+        latency, addresses = json.loads(completed.stdout)
+        if isinstance(latency, bool) or not isinstance(latency, (int, float)) or not 0 <= latency < float("inf"):
+            raise ValueError
+        if not isinstance(addresses, list) or not 1 <= len(addresses) <= 16:
+            raise ValueError
+        if any(not isinstance(value, str) or len(value) > 64 or str(ipaddress.ip_address(value)) != value for value in addresses):
+            raise ValueError
+    except (ValueError, TypeError, UnicodeDecodeError) as exc:
+        raise CheckExecutionError("名称解析返回无效结果") from exc
+    status, note = _latency_status(latency, thresholds)
+    return _base_result(check, status=status, summary="名称解析成功",
+                        detail=f"系统解析器返回地址：显示 {len(addresses)} 个（上限 16）；{note}",
+                        latency_ms=latency, metrics={"addresses": addresses, "address_count": len(addresses)})
 
 
 def _validate_tcp(check: CheckConfig) -> None:
@@ -82,6 +134,67 @@ def _validate_http(check: CheckConfig) -> None:
     parsed = urlparse(check.target)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise CheckExecutionError("HTTP 检查目标必须是绝对 HTTP(S) URL")
+
+
+def _validate_disk(check: CheckConfig) -> None:
+    if (
+        not Path(check.target).is_absolute()
+        or check.target.startswith(("//", "\\\\"))
+        or "\0" in check.target
+    ):
+        raise CheckExecutionError("磁盘检测目标必须是本机绝对路径")
+
+
+def _run_disk(check: CheckConfig, thresholds: Thresholds) -> CheckResult:
+    if getattr(sys, "frozen", False):
+        raise CheckExecutionError("此打包运行环境不支持磁盘采集子进程")
+    code = (
+        "import json,shutil,sys; d=shutil.disk_usage(sys.argv[1]); "
+        "print(json.dumps([d.total,d.used,d.free]))"
+    )
+    try:
+        completed = subprocess.run(
+            [sys.executable, "-I", "-c", code, check.target],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=check.timeout_seconds,
+            check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise CheckExecutionError("磁盘容量采集超时") from exc
+    except OSError as exc:
+        raise CheckExecutionError("无法启动磁盘采集") from exc
+    if completed.returncode != 0:
+        raise CheckExecutionError("无法读取磁盘容量，请检查路径与权限")
+    try:
+        values = json.loads(completed.stdout)
+        if not isinstance(values, list) or len(values) != 3:
+            raise ValueError
+        total, used, free = values
+        if any(isinstance(v, bool) or not isinstance(v, int) for v in values):
+            raise ValueError
+        if total <= 0 or not 0 <= used <= total or not 0 <= free <= total:
+            raise ValueError
+    except (ValueError, TypeError, UnicodeDecodeError) as exc:
+        raise CheckExecutionError("磁盘容量采集返回无效结果") from exc
+    free_percent = free / total * 100
+    detail = f"剩余 {free_percent:.2f}%（{free} / {total} 字节）"
+    if not check.assertions:
+        detail += "；未配置容量断言"
+    return _base_result(
+        check,
+        status="unknown",
+        summary="磁盘容量已采集",
+        detail=detail,
+        latency_ms=None,
+        metrics={
+            "total_bytes": total,
+            "used_bytes": used,
+            "free_bytes": free,
+            "free_percent": free_percent,
+        },
+    )
 
 
 def _run_ping(check: CheckConfig, thresholds: Thresholds) -> CheckResult:
@@ -287,7 +400,20 @@ def run_check(
         if probe is None:
             raise CheckExecutionError(f"不支持的检查类型：{check.type}")
         probe.validate(check)
-        return probe.run(check, thresholds)
+        result = probe.run(check, thresholds)
+        if not check.assertions:
+            return result
+        evidence = evaluate_assertions(
+            check.assertions,
+            result.metrics,
+            latency_ms=result.latency_ms,
+        )
+        result.assertions = evidence
+        result.status = assertion_status(evidence, fallback=result.status)
+        result.detail = "；".join(
+            [result.detail, *(item["detail"] for item in evidence)]
+        )
+        return result
     except CheckExecutionError as exc:
         return _base_result(
             check,
@@ -333,6 +459,8 @@ def _validate_probe_contract(name: str, probe: Probe) -> None:
 
 
 PROBES: dict[str, Probe] = {
+    "dns": Probe(validate=_validate_dns, run=_run_dns, domain="network"),
+    "disk": Probe(validate=_validate_disk, run=_run_disk, domain="host"),
     "ping": Probe(validate=_validate_ping, run=_run_ping, domain="network"),
     "tcp": Probe(validate=_validate_tcp, run=_run_tcp, domain="network"),
     "tls": Probe(validate=_validate_tls, run=_run_tls, domain="network"),

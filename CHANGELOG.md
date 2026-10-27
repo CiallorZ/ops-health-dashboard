@@ -6,6 +6,60 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-28
+
+### Added
+
+- Add workspace navigation and clickable status summaries to the live dashboard, and rewrite the product introduction and setup guide.
+- Refresh the live dashboard with a light theme, responsive surfaces and motion-aware filter transitions.
+- Dashboard status filters expose their selected state and animate user-triggered result changes, respecting reduced-motion preferences.
+
+- Bounded system name resolution checks with observed addresses, latency,
+  assertion support and history. Uses the host resolver, including hosts and
+  cache; it does not test a particular DNS server or record type.
+
+- Bounded local disk capacity sampling for explicitly configured absolute
+  paths, with actual byte/percentage metrics, assertions, history and
+  Prometheus output. No capacity assertion means `unknown`, not healthy.
+
+### Fixed
+
+- Default checks now target only the local resolver and loopback, and do not assume a particular server port.
+- Avoid treating unrelated HTTP 200 responses as a running Sentinel instance in the Windows launcher.
+- Show the actual background scheduler state on the overview, including manual mode and connection failures.
+- Normal shutdown keeps the data-directory lock until active sampling and
+  HTTP handlers finish; idle HTTP connections have a 10-second timeout.
+- Dashboard clears stale summary values on connection failure and offers a
+  domain filter based on the actual checks in the latest snapshot.
+- `/readyz` now tests directory writes and access to an existing history file;
+  storage failures return 503 without exposing filesystem error details.
+
+## [0.13.0] - 2026-10-27
+
+### Fixed
+
+- Acquire the data-directory lock before initializing history and alert stores;
+  retain the lock file after release to prevent concurrent processes from
+  locking different files during a handover.
+
+### Added
+
+- Declarative per-check `assertions`: each rule targets one probe metric or
+  `latency_ms`, accepts bounded `warn` / `fail` thresholds, and defaults to no
+  behavior change when omitted. Operators choose the expected comparison; the
+  default probe thresholds remain evidence for the legacy verdict.
+- Bounded assertion grammar: `== != > >= < <= in exists missing`, at most 8
+  rules per check, 16 `in` values, finite numbers/booleans and literal or
+  prefix strings only. Regex, expression engines and cross-check math are
+  deliberately unsupported.
+- Structured assertion evidence (`actual`, verdict and judgment reason) in
+  snapshots, per-run history and per-check heartbeats. `unknown` is used for
+  a missing metric or incompatible metric type; it is never counted as
+  available and is not retried.
+- Dashboard and offline reports expose assertion evidence and truthful
+  `unknown` totals/health. Long trends distinguish an unknown day from a
+  healthy day and render missing availability as `--`.
+
 ## [0.12.0] - 2026-10-26
 
 ### Added

@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 from tempfile import TemporaryDirectory
 from pathlib import Path
 
@@ -55,7 +56,7 @@ class HistoryInsightTests(unittest.TestCase):
         self.assertEqual(api["samples"], 3)
         self.assertEqual(api["availability_percent"], 66.7)
         self.assertEqual(api["average_latency_ms"], 30.0)
-        self.assertEqual(api["counts"], {"ok": 1, "warn": 1, "fail": 1})
+        self.assertEqual(api["counts"], {"ok": 1, "warn": 1, "fail": 1, "unknown": 0})
         self.assertEqual(api["last_change"]["from"], "warn")
         self.assertEqual(api["last_change"]["to"], "fail")
         self.assertEqual(
@@ -181,7 +182,7 @@ class HistoryTrendTests(unittest.TestCase):
                 {"generated_at": "2026-10-21T00:00:00Z", "checks": "broken"},
                 {
                     "generated_at": "2026-10-21T00:00:00Z",
-                    "checks": [{"id": "api", "status": "unknown"}],
+                    "checks": [{"id": "api", "status": "invalid"}],
                 },
             ],
             [{"id": "api", "name": "API"}],
@@ -212,6 +213,25 @@ class HistoryTrendTests(unittest.TestCase):
 
 
 class HistoryRetentionTests(unittest.TestCase):
+    def test_writable_probe_preserves_history_and_cleans_up(self):
+        store = HistoryStore(self.data_dir)
+        store.append({"run_id": "before"})
+        before = store.path.read_bytes()
+        before_files = set(self.data_dir.iterdir())
+        store.check_writable()
+        self.assertEqual(store.path.read_bytes(), before)
+        self.assertEqual(set(self.data_dir.iterdir()), before_files)
+
+    def test_writable_probe_reports_directory_and_history_failures(self):
+        store = HistoryStore(self.data_dir)
+        store.append({"run_id": "before"})
+        with patch("monitor.history.tempfile.TemporaryFile", side_effect=PermissionError):
+            with self.assertRaises(PermissionError):
+                store.check_writable()
+        with patch.object(Path, "open", side_effect=PermissionError):
+            with self.assertRaises(PermissionError):
+                store.check_writable()
+
     def setUp(self):
         self.temp = TemporaryDirectory()
         self.data_dir = Path(self.temp.name)

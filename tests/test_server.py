@@ -3,12 +3,73 @@ import threading
 import unittest
 import urllib.request
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from monitor import __version__
+from monitor.instance_lock import InstanceLock, InstanceLockError
 from server import build_server
 
 
 class ServerTests(unittest.TestCase):
+    def test_shutdown_holds_lock_until_active_request_finishes(self):
+        started = threading.Event()
+        release = threading.Event()
+        original = self.server.runner.get_snapshot
+
+        def blocked_snapshot(*args, **kwargs):
+            started.set()
+            if not release.wait(5):
+                raise TimeoutError("test did not release request")
+            return original(*args, **kwargs)
+
+        def request_status():
+            with urllib.request.urlopen(self.base + "/api/status?force=1", timeout=8) as response:
+                response.read()
+
+        request = threading.Thread(target=request_status)
+        closing = threading.Thread(target=lambda: (self.server.shutdown(), self.server.server_close()))
+        with patch.object(self.server.runner, "get_snapshot", side_effect=blocked_snapshot):
+            request.start()
+            try:
+                self.assertTrue(started.wait(2))
+                closing.start()
+                closing.join(0.3)
+                self.assertTrue(closing.is_alive())
+                with self.assertRaises(InstanceLockError):
+                    InstanceLock(f"{self.temp.name}/data").acquire()
+            finally:
+                release.set()
+                request.join(6)
+                if closing.ident is not None:
+                    closing.join(6)
+        self.assertFalse(request.is_alive())
+        self.assertFalse(closing.is_alive())
+        lock = InstanceLock(f"{self.temp.name}/data")
+        lock.acquire()
+        lock.release()
+
+    def test_startup_failure_releases_lock(self):
+        data_dir = f"{self.temp.name}/other-data"
+        with patch("server.DashboardServer", side_effect=OSError("bind failed")):
+            with self.assertRaises(OSError):
+                build_server(
+                    host="127.0.0.1", port=0,
+                    config_path=f"{self.temp.name}/checks.json", data_dir=data_dir,
+                )
+        lock = InstanceLock(data_dir)
+        lock.acquire()
+        lock.release()
+
+    def test_second_instance_does_not_initialize_or_mutate_history(self):
+        with patch("server.HistoryStore") as history:
+            with self.assertRaises(InstanceLockError):
+                build_server(
+                    host="127.0.0.1", port=0,
+                    config_path=f"{self.temp.name}/checks.json",
+                    data_dir=f"{self.temp.name}/data",
+                )
+            history.assert_not_called()
+
     def setUp(self):
         self.temp = TemporaryDirectory()
         dashboard = f"{self.temp.name}/dashboard"
@@ -260,6 +321,21 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(body["status"], "ready")
         self.assertEqual(body["version"], __version__)
+
+    def test_readyz_rejects_unwritable_storage_and_recovers(self):
+        self.server.start_background_monitor()
+        self.server.runner.get_snapshot(force=True)
+        with patch.object(self.server.runner.history, "check_writable", side_effect=PermissionError("private-path")):
+            with self.assertRaises(urllib.error.HTTPError) as response:
+                self.get_json("/readyz")
+            self.assertEqual(response.exception.code, 503)
+            payload = json.loads(response.exception.read())
+            response.exception.close()
+            self.assertIn("history storage not writable", payload["problems"])
+            self.assertNotIn("private-path", str(payload))
+        status, _, payload = self.get_json("/readyz")
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status"], "ready")
 
     def test_metrics_returns_prometheus_text(self):
         self.server.runner.get_snapshot(force=True)
