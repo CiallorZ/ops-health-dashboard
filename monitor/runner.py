@@ -116,6 +116,12 @@ class CheckRunnerService:
                                 if result.assertions
                                 else {}
                             ),
+                            **(
+                                {"metrics": {name: result.metrics[name] for name in (
+                                    "total_bytes", "used_bytes", "free_bytes", "free_percent"
+                                ) if name in result.metrics}}
+                                if result.type == "disk" else {}
+                            ),
                         }
                         for result in results
                     ],
@@ -207,6 +213,12 @@ class CheckRunnerService:
             latency = check.get("latency_ms")
             if latency is not None:
                 lines.append("sentinel_check_latency_ms{" + labels + "} " + str(latency))
+            if check.get("type") == "disk":
+                metrics = check.get("metrics", {})
+                for name in ("total_bytes", "used_bytes", "free_bytes", "free_percent"):
+                    value = metrics.get(name)
+                    if isinstance(value, (int, float)) and not isinstance(value, bool):
+                        lines.append("sentinel_disk_" + name + "{" + labels + "} " + str(value))
         stats = self.history.stats()
         lines.append("sentinel_history_bytes " + str(stats["current_bytes"]))
         lines.append("sentinel_history_max_bytes " + str(stats["max_file_bytes"]))

@@ -6,6 +6,12 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Bounded local disk capacity sampling for explicitly configured absolute
+  paths, with actual byte/percentage metrics, assertions, history and
+  Prometheus output. No capacity assertion means `unknown`, not healthy.
+
 ### Fixed
 
 - Normal shutdown keeps the data-directory lock until active sampling and
