@@ -838,8 +838,12 @@ document.querySelectorAll(".filter").forEach((button) => {
     activeFilter = button.dataset.filter ?? "all";
     document.querySelectorAll(".filter").forEach((item) => {
       item.classList.toggle("is-active", item === button);
+      item.setAttribute("aria-pressed", String(item === button));
     });
     renderChecks();
+    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      elements.checksList.animate([{opacity: 0.35, transform: "translateY(5px)"}, {opacity: 1, transform: "translateY(0)"}], {duration: 180, easing: "ease-out"});
+    }
   });
 });
 

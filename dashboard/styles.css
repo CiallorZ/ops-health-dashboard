@@ -645,12 +645,26 @@ h2 {
   cursor: pointer;
   font-family: var(--mono);
   font-size: 10px;
+  transition: color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
 }
 
 .filter:hover,
 .filter.is-active {
   color: var(--text);
   background: var(--surface-raised);
+}
+
+.filter.is-active {
+  box-shadow: inset 0 -2px 0 var(--acid);
+}
+
+.filter:focus-visible {
+  outline: 2px solid var(--acid);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .filter { transition: none; }
 }
 
 .checks-list {

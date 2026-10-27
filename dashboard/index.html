@@ -141,11 +141,11 @@
                 </select>
               </label>
               <div class="filter-bar" role="group" aria-label="筛选检测结果">
-                <button class="filter is-active" type="button" data-filter="all">全部</button>
-                <button class="filter" type="button" data-filter="fail">异常</button>
-                <button class="filter" type="button" data-filter="warn">预警</button>
-                <button class="filter" type="button" data-filter="ok">正常</button>
-                <button class="filter" type="button" data-filter="unknown">未知</button>
+                <button class="filter is-active" type="button" data-filter="all" aria-pressed="true">全部</button>
+                <button class="filter" type="button" data-filter="fail" aria-pressed="false">异常</button>
+                <button class="filter" type="button" data-filter="warn" aria-pressed="false">预警</button>
+                <button class="filter" type="button" data-filter="ok" aria-pressed="false">正常</button>
+                <button class="filter" type="button" data-filter="unknown" aria-pressed="false">未知</button>
               </div>
             </div>
             <div class="checks-list" id="checks-list" aria-live="polite">

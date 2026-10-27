@@ -8,6 +8,8 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- Dashboard status filters expose their selected state and animate user-triggered result changes, respecting reduced-motion preferences.
+
 - Bounded system name resolution checks with observed addresses, latency,
   assertion support and history. Uses the host resolver, including hosts and
   cache; it does not test a particular DNS server or record type.
