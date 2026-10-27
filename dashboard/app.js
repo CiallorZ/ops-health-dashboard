@@ -570,6 +570,10 @@ function renderAutomation(data) {
   renderRetention(automation.retention);
   const running = Boolean(scheduler.running);
   const failed = Boolean(scheduler.last_error);
+  const interval = Number(scheduler.interval_seconds);
+  elements.monitorInterval.textContent = failed ? "后台调度异常" : running
+    ? `后台每 ${formatInterval(interval)}采样` : scheduler.running === false
+      ? "后台采样未启动" : "后台采样状态未知";
   elements.schedulerState.dataset.state = failed ? "fail" : running ? "ok" : "idle";
   elements.schedulerState.textContent = failed
     ? "调度异常"
@@ -699,8 +703,6 @@ function renderConfig(config) {
   elements.thresholdLatencyFail.textContent = `${formatNumber(thresholds.latency_fail_ms)} ms`;
   elements.thresholdTlsWarn.textContent = `${formatNumber(thresholds.tls_warn_days)} 天`;
   elements.thresholdTlsFail.textContent = `${formatNumber(thresholds.tls_fail_days)} 天`;
-  elements.monitorInterval.textContent =
-    `后台每 ${formatInterval(Number(config?.monitor_interval_seconds))}采样`;
   const budget = config?.domain_budget ?? {};
   const defaultWorkers = Number(budget.default);
   const overrides = Object.entries(budget).filter(
@@ -797,6 +799,10 @@ async function loadStatus({ force = false } = {}) {
     elements.metricFail.textContent = "--";
     elements.metricLatency.textContent = "--";
     elements.runDuration.textContent = "-- ms";
+    elements.monitorInterval.textContent = "后台采样状态不可用";
+    elements.schedulerInterval.textContent = "--";
+    elements.schedulerLast.textContent = "--";
+    elements.schedulerNext.textContent = "--";
     elements.lastUpdated.textContent = "连接中断，等待重新采样";
     elements.trendBars.innerHTML = '<div class="trend-empty is-error">历史采样不可用</div>';
     elements.trendDaysWithData.textContent = "--";
@@ -833,6 +839,12 @@ async function loadStatus({ force = false } = {}) {
   }
 }
 
+function animateResults() {
+  if (typeof elements.checksList.animate !== "function" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  elements.checksList.getAnimations().forEach((animation) => animation.cancel());
+  elements.checksList.animate([{opacity: 0.35, transform: "translateY(5px)"}, {opacity: 1, transform: "translateY(0)"}], {duration: 180, easing: "ease-out"});
+}
+
 document.querySelectorAll(".filter").forEach((button) => {
   button.addEventListener("click", () => {
     activeFilter = button.dataset.filter ?? "all";
@@ -841,9 +853,7 @@ document.querySelectorAll(".filter").forEach((button) => {
       item.setAttribute("aria-pressed", String(item === button));
     });
     renderChecks();
-    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      elements.checksList.animate([{opacity: 0.35, transform: "translateY(5px)"}, {opacity: 1, transform: "translateY(0)"}], {duration: 180, easing: "ease-out"});
-    }
+    animateResults();
   });
 });
 
@@ -855,6 +865,7 @@ elements.checkSearch.addEventListener("input", () => {
 elements.domainFilter.addEventListener("change", () => {
   activeDomain = elements.domainFilter.value;
   renderChecks();
+  animateResults();
 });
 
 elements.refreshButton.addEventListener("click", () => loadStatus({ force: true }));
