@@ -36,6 +36,14 @@ class UiContractTests(unittest.TestCase):
         self.assertIn('unknown: "部分状态未知"', javascript)
         self.assertIn("项缺少判定依据", javascript)
 
+    def test_domain_filter_and_offline_state_are_present(self):
+        javascript = (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
+        html = (ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('id="domain-filter"', html)
+        self.assertIn('activeDomain !== "all"', javascript)
+        self.assertIn('elements.scoreValue.textContent = "--"', javascript)
+        self.assertIn('latestStatus = null', javascript)
+
     def test_certificate_calendar_renders_truthful_states(self):
         javascript = (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
         html = (ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")

@@ -6,6 +6,21 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Bounded local disk capacity sampling for explicitly configured absolute
+  paths, with actual byte/percentage metrics, assertions, history and
+  Prometheus output. No capacity assertion means `unknown`, not healthy.
+
+### Fixed
+
+- Normal shutdown keeps the data-directory lock until active sampling and
+  HTTP handlers finish; idle HTTP connections have a 10-second timeout.
+- Dashboard clears stale summary values on connection failure and offers a
+  domain filter based on the actual checks in the latest snapshot.
+- `/readyz` now tests directory writes and access to an existing history file;
+  storage failures return 503 without exposing filesystem error details.
+
 ## [0.13.0] - 2026-10-27
 
 ### Fixed

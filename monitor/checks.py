@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import socket
 import ssl
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -12,6 +14,7 @@ from urllib.parse import urlparse
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, NamedTuple
+from pathlib import Path
 
 from . import __version__
 from .assertions import assertion_status, evaluate_assertions
@@ -85,6 +88,67 @@ def _validate_http(check: CheckConfig) -> None:
     parsed = urlparse(check.target)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise CheckExecutionError("HTTP 检查目标必须是绝对 HTTP(S) URL")
+
+
+def _validate_disk(check: CheckConfig) -> None:
+    if (
+        not Path(check.target).is_absolute()
+        or check.target.startswith(("//", "\\\\"))
+        or "\0" in check.target
+    ):
+        raise CheckExecutionError("磁盘检测目标必须是本机绝对路径")
+
+
+def _run_disk(check: CheckConfig, thresholds: Thresholds) -> CheckResult:
+    if getattr(sys, "frozen", False):
+        raise CheckExecutionError("此打包运行环境不支持磁盘采集子进程")
+    code = (
+        "import json,shutil,sys; d=shutil.disk_usage(sys.argv[1]); "
+        "print(json.dumps([d.total,d.used,d.free]))"
+    )
+    try:
+        completed = subprocess.run(
+            [sys.executable, "-I", "-c", code, check.target],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=check.timeout_seconds,
+            check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise CheckExecutionError("磁盘容量采集超时") from exc
+    except OSError as exc:
+        raise CheckExecutionError("无法启动磁盘采集") from exc
+    if completed.returncode != 0:
+        raise CheckExecutionError("无法读取磁盘容量，请检查路径与权限")
+    try:
+        values = json.loads(completed.stdout)
+        if not isinstance(values, list) or len(values) != 3:
+            raise ValueError
+        total, used, free = values
+        if any(isinstance(v, bool) or not isinstance(v, int) for v in values):
+            raise ValueError
+        if total <= 0 or not 0 <= used <= total or not 0 <= free <= total:
+            raise ValueError
+    except (ValueError, TypeError, UnicodeDecodeError) as exc:
+        raise CheckExecutionError("磁盘容量采集返回无效结果") from exc
+    free_percent = free / total * 100
+    detail = f"剩余 {free_percent:.2f}%（{free} / {total} 字节）"
+    if not check.assertions:
+        detail += "；未配置容量断言"
+    return _base_result(
+        check,
+        status="unknown",
+        summary="磁盘容量已采集",
+        detail=detail,
+        latency_ms=None,
+        metrics={
+            "total_bytes": total,
+            "used_bytes": used,
+            "free_bytes": free,
+            "free_percent": free_percent,
+        },
+    )
 
 
 def _run_ping(check: CheckConfig, thresholds: Thresholds) -> CheckResult:
@@ -349,6 +413,7 @@ def _validate_probe_contract(name: str, probe: Probe) -> None:
 
 
 PROBES: dict[str, Probe] = {
+    "disk": Probe(validate=_validate_disk, run=_run_disk, domain="host"),
     "ping": Probe(validate=_validate_ping, run=_run_ping, domain="network"),
     "tcp": Probe(validate=_validate_tcp, run=_run_tcp, domain="network"),
     "tls": Probe(validate=_validate_tls, run=_run_tls, domain="network"),

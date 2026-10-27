@@ -31,7 +31,7 @@ Sentinel 面向“先自己看见，再等人投诉”的场景：本机或内�
 
 **目标**是把它做成自托管的**综合运维监控内核**——在同一套证据模型下覆盖主机、网络、数据库、中间件、容器 / K8s、AIoT 与安全基线，对标 Uptime Kuma 的“一屏看清 + 状态迁移即告警”闭环体验。
 
-**当前已实现**的是网络域的黑盒存活探测（ICMP / TCP / TLS / HTTP）及其配套的调度、告警、趋势、证书、留存与维护窗口。**主机资源、数据库、中间件、K8s、AIoT、安全基线属于规划中的 Phase B，尚未实现**——下面的能力清单只列已落地的部分，路线见 [ROADMAP.md](ROADMAP.md) 与 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
+**当前已实现（源码）**网络域黑盒探测（ICMP / TCP / TLS / HTTP）、本机路径所在磁盘容量采集，以及调度、告警、趋势、证书、留存与维护窗口。其他主机资源、数据库、中间件、K8s、AIoT、安全基线仍在规划中，尚未实现；未发布的源码变更以 `CHANGELOG.md` 的 Unreleased 为准。
 
 它**不是**一个演示用的大屏，也不伪造成功率：
 
@@ -81,6 +81,7 @@ Sentinel 是独立的 Python 标准库实现，不复制 Uptime Kuma 的 Vue / S
 | 能力 | 说明 |
 |---|---|
 | 四类检测 | ICMP ping、TCP 端口、TLS 证书剩余天数、HTTP 状态码与延迟 |
+| 本机磁盘容量 | 显式配置绝对路径，采集总量、已用、剩余字节和剩余百分比；未配置断言时状态为 `unknown` |
 | 可解释状态 | `ok` / `warn` / `fail`，保留原始错误、延迟、状态码与证书信息 |
 | 受限重试 | 每项可选 `0–2` 次额外尝试；结果记录实际尝试次数与是否重试恢复 |
 | 业务分组 | 按核心业务、遗留系统、外部依赖等分组呈现 |
@@ -214,8 +215,8 @@ python server.py --no-scheduler
 |---|---|
 | `id` | 唯一标识，只能使用字母、数字、`-`、`_` |
 | `monitor_interval_seconds` | 后台采样周期，范围 `10–3600` 秒，默认 `60` |
-| `type` | `http` / `tcp` / `tls` / `ping` |
-| `target` | HTTP 为完整 URL；其余为主机名或 IP |
+| `type` | `http` / `tcp` / `tls` / `ping` / `disk` |
+| `target` | HTTP 为完整 URL；`disk` 为本机绝对路径；其他类型为主机名或 IP |
 | `port` | `tcp` 必填；`tls` 默认 `443` |
 | `expected_status` | HTTP 可接受状态码，默认 `[200]` |
 | `assertions` | 可选声明式判定，最多 8 条；`op` 只允许 `== != > >= < <= in exists missing`，最多 16 个 `in` 字面量，只接受有限数字、布尔和字面量/前缀字符串；缺省沿用默认探测判定 |
@@ -241,6 +242,25 @@ python server.py --no-scheduler
 > **告警秘密**：生产环境建议使用 `webhook_url_env` 与 `signing_secret_env`，不要把真实 Webhook URL 或签名秘密写进 `checks.json`。告警只在真实状态变化时触发：首次采样为失败、之后的状态迁移，以及故障恢复；状态未变化不会重复发送。
 
 配置最多接受 **200 项检查**。这个上限同时约束单轮快照与历史条目的体积，避免无界放大。
+
+### 本机磁盘检查
+
+例如在 Windows 上检查 `C:\\`，以下断言分别在剩余容量低于 20% 和 10% 时预警、失败：
+
+```json
+{
+  "id": "system-disk",
+  "name": "系统盘",
+  "type": "disk",
+  "target": "C:\\",
+  "timeout_seconds": 5,
+  "assertions": [
+    { "metric": "free_percent", "op": "<", "warn": 20, "fail": 10 }
+  ]
+}
+```
+
+Linux 可将 `target` 设为 `/` 或明确授权的绝对目录；`domain` 默认为 `host`。容量由独立的标准库子进程读取，超时或路径不可读记为失败；没有断言时，采集成功不等同容量健康，状态为 `unknown`。`total_bytes`、`used_bytes`、`free_bytes` 和 `free_percent` 可用于断言、历史和 `/metrics`。不读取文件内容，不自动发现磁盘；不要配置未经授权的挂载路径。冻结式打包运行环境暂不支持该子进程方式。
 
 ## API
 

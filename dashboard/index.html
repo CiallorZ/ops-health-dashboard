@@ -40,7 +40,7 @@
             <p class="eyebrow"><span>LIVE</span> 本地控制面</p>
             <h1 id="page-title">把异常，<em>提前看见。</em></h1>
             <p class="hero-intro">
-              网络连通性、端口、证书与 HTTP 服务实时汇集。
+              网络连通性、端口、证书、HTTP 服务与本机磁盘容量实时汇集。
               这不是一张静态报表，而是你当前环境正在发生的事实。
             </p>
             <div class="hero-meta">
@@ -133,6 +133,12 @@
                   autocomplete="off"
                   spellcheck="false"
                 >
+              </label>
+              <label class="domain-filter">
+                <span>监控域</span>
+                <select id="domain-filter" aria-label="按监控域筛选">
+                  <option value="all">全部域</option>
+                </select>
               </label>
               <div class="filter-bar" role="group" aria-label="筛选检测结果">
                 <button class="filter is-active" type="button" data-filter="all">全部</button>

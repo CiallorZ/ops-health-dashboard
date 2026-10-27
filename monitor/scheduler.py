@@ -56,7 +56,7 @@ class BackgroundMonitor:
         with self._lock:
             thread = self._thread
         if thread is not None:
-            thread.join(timeout=max(1.0, min(self.interval_seconds, 5.0)))
+            thread.join()
         with self._lock:
             self._thread = None
             self._running = False

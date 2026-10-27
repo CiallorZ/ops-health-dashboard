@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 
 from .maintenance import MaintenanceError, MaintenanceWindow, parse_maintenance_windows
 
-SUPPORTED_TYPES = {"http", "tcp", "tls", "ping"}
+SUPPORTED_TYPES = {"http", "tcp", "tls", "ping", "disk"}
 SUPPORTED_DOMAINS = {
     "network",
     "host",
@@ -418,7 +418,16 @@ def _parse_check(raw: Any, index: int) -> CheckConfig:
     if check_type == "tcp" and port is None:
         raise ConfigError(f"{label}.port is required for TCP checks")
 
-    if check_type == "http":
+    if check_type == "disk":
+        if (
+            not Path(target).is_absolute()
+            or target.startswith(("//", "\\\\"))
+            or "\0" in target
+        ):
+            raise ConfigError(f"{label}.target must be an absolute local path")
+        if raw.get("domain", "host") != "host":
+            raise ConfigError(f"{label}.domain must be host for disk checks")
+    elif check_type == "http":
         parsed = urlparse(target)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise ConfigError(f"{label}.target must be an absolute HTTP(S) URL")
@@ -461,7 +470,10 @@ def _parse_check(raw: Any, index: int) -> CheckConfig:
         verify_tls=verify_tls,
         group=_group(raw.get("group"), name=f"{label}.group"),
         tags=_string_list(raw.get("tags"), name=f"{label}.tags"),
-        domain=_domain(raw.get("domain"), name=f"{label}.domain"),
+        domain=_domain(
+            raw.get("domain", "host" if check_type == "disk" else None),
+            name=f"{label}.domain",
+        ),
         assertions=assertions,
     )
 

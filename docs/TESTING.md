@@ -26,6 +26,7 @@ git diff --check
 | 文件 | 关注点 |
 |---|---|
 | `tests/test_checks.py` | HTTP 状态码、跳转、TLS 边界、User-Agent 版本 |
+| `tests/test_disk.py` | 本地磁盘真实采样、路径及域校验、断言/历史/指标贯通、超时与错误路径 |
 | `tests/test_config.py` | 默认值、分组、重试边界、凭据拒绝、重复 ID |
 | `tests/test_assertions.py` | 断言配置上限/字面量校验、缺失指标、类型不符、边界值、状态优先级 |
 | `tests/test_history.py` | 逐项可用率、延迟聚合、旧历史兼容、事件数量上限；真实 UTC 日趋势聚合、p50/p95、缺失日期不补造；历史单文件/归档上限、轮转链、超限压缩、零归档删除、畸形行跳过 |

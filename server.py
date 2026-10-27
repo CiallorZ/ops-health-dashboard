@@ -31,7 +31,7 @@ SERVER_VERSION = f"OpsHealthDashboard/{__version__}"
 
 
 class DashboardServer(ThreadingHTTPServer):
-    daemon_threads = True
+    daemon_threads = False
     allow_reuse_address = True
 
     def __init__(
@@ -55,17 +55,20 @@ class DashboardServer(ThreadingHTTPServer):
 
     def server_close(self) -> None:
         self.scheduler.stop()
+        # Close the listener and wait for request handlers before releasing
+        # the data lock; handlers can also trigger a snapshot.
+        super().server_close()
         if self.runner.alert_dispatcher is not None:
             self.runner.alert_dispatcher.close()
         if self.lock is not None:
             self.lock.release()
-        super().server_close()
 
 
 class DashboardRequestHandler(BaseHTTPRequestHandler):
     server: DashboardServer
     server_version = SERVER_VERSION
     sys_version = ""
+    timeout = 10
 
     def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
         parsed = urlparse(self.path)
@@ -101,14 +104,14 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
                     problems.append("snapshot unavailable")
                 else:
                     try:
-                        self.server.runner.history.stats()
-                    except OSError as exc:
-                        problems.append(f"data directory not writable: {exc}")
+                        self.server.runner.history.check_writable()
+                    except OSError:
+                        problems.append("history storage not writable")
                 sched = self.server.scheduler.status()
                 if not sched.get("running"):
                     problems.append("scheduler not running")
-            except Exception as exc:  # keep /readyz honest under partial failures
-                problems.append(str(exc))
+            except Exception:  # keep /readyz honest under partial failures
+                problems.append("readiness check failed")
             if problems:
                 self._send_json(
                     HTTPStatus.SERVICE_UNAVAILABLE,
