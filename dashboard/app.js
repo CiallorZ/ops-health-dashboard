@@ -61,7 +61,7 @@ let loading = false;
 let toastTimer = null;
 
 const healthLabels = {
-  healthy: "系统稳定",
+  healthy: "当前检查正常",
   degraded: "存在预警",
   critical: "需要处置",
   empty: "没有启用检查",
@@ -845,6 +845,17 @@ function animateResults() {
   elements.checksList.animate([{opacity: 0.35, transform: "translateY(5px)"}, {opacity: 1, transform: "translateY(0)"}], {duration: 180, easing: "ease-out"});
 }
 
+document.querySelectorAll(".workspace-nav a").forEach((link) => {
+  link.addEventListener("click", () => {
+    document.querySelectorAll(".workspace-nav a").forEach((item) => {
+      const selected = item === link;
+      item.classList.toggle("is-active", selected);
+      if (selected) item.setAttribute("aria-current", "location");
+      else item.removeAttribute("aria-current");
+    });
+  });
+});
+
 document.querySelectorAll(".filter").forEach((button) => {
   button.addEventListener("click", () => {
     activeFilter = button.dataset.filter ?? "all";
@@ -854,6 +865,20 @@ document.querySelectorAll(".filter").forEach((button) => {
     });
     renderChecks();
     animateResults();
+  });
+});
+
+document.querySelectorAll("[data-summary-filter]").forEach((button) => {
+  button.addEventListener("click", () => {
+    activeDomain = "all";
+    searchQuery = "";
+    elements.checkSearch.value = "";
+    const filter = document.querySelector(`.filter[data-filter="${button.dataset.summaryFilter}"]`);
+    if (filter) filter.click();
+    document.querySelector("#checks-title").scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      block: "start",
+    });
   });
 });
 
