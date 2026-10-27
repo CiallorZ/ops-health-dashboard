@@ -515,6 +515,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\uninstall-autostart.
 
 ## 演示与截图复现
 
+另有独立的[工作台交互演示](demo/README.md)，涵盖基础设施、网络、数据库、中间件和云原生示例。它只使用模拟数据，不连接真实目标，也不修改 Sentinel 配置或历史。
+
 ```powershell
 # 终端 1：启动本地可控替身（含一个会在 3 次握手后关闭的旧端口）
 python examples\demo_targets.py --port 18081

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Sentinel · 运维监控工作台演示</title>
+  <link rel="stylesheet" href="style.css?v=signal-workspace-3">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <a class="brand" href="#overview"><span class="brand-icon">S<span>·</span></span><span><strong>sentinel</strong><small>INFRASTRUCTURE HEALTH</small></span></a>
+      <div class="workspace-label">WORKSPACE <span>01</span></div>
+      <nav class="nav" aria-label="工作台导航">
+        <button class="nav-item active" data-view="overview"><span class="nav-symbol">◫</span>总览 <span class="nav-count">⌘ 1</span></button>
+        <button class="nav-item" data-view="all"><span class="nav-symbol">▦</span>全部监控 <span class="nav-count" id="nav-total">—</span></button>
+        <span class="nav-heading">监控领域</span>
+        <button class="nav-item" data-view="host"><span class="nav-symbol">▤</span>基础设施 <span class="nav-count" data-count="host"></span></button>
+        <button class="nav-item" data-view="network"><span class="nav-symbol">⌁</span>网络与服务 <span class="nav-count" data-count="network"></span></button>
+        <button class="nav-item" data-view="database"><span class="nav-symbol">▱</span>数据库 <span class="nav-count" data-count="database"></span></button>
+        <button class="nav-item" data-view="middleware"><span class="nav-symbol">◇</span>中间件 <span class="nav-count" data-count="middleware"></span></button>
+        <button class="nav-item" data-view="cloud"><span class="nav-symbol">⬡</span>云原生 <span class="nav-count" data-count="cloud"></span></button>
+        <span class="nav-heading">运营管理</span>
+        <button class="nav-item" data-view="events"><span class="nav-symbol">◷</span>事件中心 <span class="event-count" id="nav-alerts">—</span></button>
+      </nav>
+      <div class="sidebar-footer"><div class="environment"><span class="env-icon">◈</span><span><strong>演示环境</strong><small>本地模拟数据</small></span><span class="env-dot"></span></div><p>DEMO WORKSPACE <span>v0.1</span></p></div>
+    </aside>
+    <main class="main">
+      <header class="topbar"><div class="breadcrumb"><span>工作台</span><span class="crumb-sep">/</span><strong id="breadcrumb">总览</strong></div><div class="top-actions"><button class="quick-search" id="command-open" aria-label="打开快速查找"><span>⌕</span> 快速查找 <kbd>Ctrl K</kbd></button><span class="demo-pill"><i></i>演示模式 · 数据非真实</span><button class="icon-button" id="refresh" title="模拟刷新" aria-label="模拟刷新">↻</button><button class="add-button" id="add-monitor"><span>＋</span> 添加监控</button></div></header>
+      <div class="content">
+        <section class="page-head"><div class="hero-intro"><div class="hero-kicker"><span></span> 演示工作台</div><h1 id="page-title">监控总览</h1><p id="page-subtitle">从服务状态出发，快速找到需要处理的问题。</p><div class="last-update"><span>最近模拟采样</span><strong id="last-updated">—</strong><small>不连接真实目标</small></div></div><div class="hero-signal"><div class="signal-head"><div><span>当前运行态势</span><strong id="signal-total">—</strong></div><small>模拟对象</small></div><div class="signal-track" aria-hidden="true"><span data-segment="ok"></span><span data-segment="warn"></span><span data-segment="fail"></span><span data-segment="unknown"></span></div><div class="signal-legend" aria-label="按状态查看监控"><button data-signal-filter="ok"><i class="ok-dot"></i>正常 <b id="signal-ok">—</b></button><button data-signal-filter="warn"><i class="warn-dot"></i>预警 <b id="signal-warn">—</b></button><button data-signal-filter="fail"><i class="fail-dot"></i>异常 <b id="signal-fail">—</b></button><button data-signal-filter="unknown"><i class="unknown-dot"></i>未知 <b id="signal-unknown">—</b></button></div></div></section>
+        <div class="demo-notice"><span class="notice-icon">✦</span><span><strong>你正在浏览演示工作台</strong><span>所有数值、事件和操作均为模拟，不代表真实监控结果。</span></span><button id="reset-demo">重置演示</button></div>
+        <section class="summary" aria-label="模拟监控汇总"><article class="summary-card total"><div class="card-top"><span>监控对象</span><span class="summary-icon blue">▦</span></div><div class="summary-number"><strong id="stat-total">—</strong><small>个</small></div><p><span class="metric-tag blue-tag">全部资源</span> <span id="stat-total-note">覆盖 5 个监控领域</span></p></article><article class="summary-card"><div class="card-top"><span>运行正常</span><span class="summary-icon green">✓</span></div><div class="summary-number"><strong id="stat-ok">—</strong><small>个</small></div><p><span class="metric-tag green-tag">正常</span> 模拟采集状态正常</p></article><article class="summary-card"><div class="card-top"><span>需要关注</span><span class="summary-icon amber">!</span></div><div class="summary-number"><strong id="stat-warn">—</strong><small>个</small></div><p><span class="metric-tag amber-tag">预警</span> 指标达到预设阈值</p></article><article class="summary-card"><div class="card-top"><span>异常 / 不可用</span><span class="summary-icon red">×</span></div><div class="summary-number"><strong id="stat-fail">—</strong><small>个</small></div><p><span class="metric-tag red-tag">异常</span> 需要优先排查</p></article></section>
+        <div class="section-title"><div><p class="section-eyebrow">YOUR ENVIRONMENT</p><h2>监控概况 <span> / ENVIRONMENT</span></h2></div><span class="muted-note">点击卡片查看对应资源 <span>↗</span></span></div>
+        <section class="domain-grid" id="domain-grid" aria-label="领域概况"></section>
+        <section class="work-grid"><article class="panel monitor-panel"><div class="panel-head"><div><p class="section-eyebrow">MONITORS <span> / DEMO VIEW</span></p><h2 id="list-title">监控对象 <span id="list-count" class="count-badge">—</span></h2><p>跨领域汇聚，快速定位需要关注的服务。</p></div><button class="text-button" id="view-all">查看全部 <span>↗</span></button></div>
+          <div class="toolbar"><label class="search"><span>⌕</span><input id="search" type="search" placeholder="搜索名称、地址或指标" aria-label="搜索监控对象"><kbd>/</kbd></label><div class="status-tabs" role="group" aria-label="状态筛选"><button class="selected" data-filter="all" aria-pressed="true">全部</button><button data-filter="fail" aria-pressed="false">异常</button><button data-filter="warn" aria-pressed="false">预警</button><button data-filter="ok" aria-pressed="false">正常</button><button data-filter="unknown" aria-pressed="false">未知</button></div></div>
+          <div class="table-wrap"><table><thead><tr><th>监控对象</th><th>状态</th><th>核心指标</th><th>近 24 小时</th><th></th></tr></thead><tbody id="monitor-body"></tbody></table></div><div class="empty hidden" id="empty">没有匹配的模拟监控。试试清除搜索或切换筛选条件。</div><div class="table-footer"><span id="table-summary">—</span><span>示例数据 · 仅用于演示</span></div>
+        </article><aside class="right-column"><article class="panel health-panel"><div class="panel-head compact"><div><p class="section-eyebrow">SERVICE HEALTH</p><h2>服务健康 <span> / TREND</span></h2></div></div><div class="period-tabs" role="group" aria-label="模拟趋势时间范围"><button data-period="6h" aria-pressed="false">6H</button><button data-period="24h" class="selected" aria-pressed="true">24H</button><button data-period="7d" aria-pressed="false">7D</button></div><div class="health-top"><div><strong id="health-number">—</strong><span>%</span><p>模拟服务可用率</p></div><span class="health-change">演示趋势</span></div><div class="chart" id="health-chart" aria-label="模拟服务健康趋势"></div><div class="chart-labels" id="chart-labels"></div><div class="chart-legend"><span><i></i> 可用性趋势</span><span>演示数据</span></div></article><article class="panel activity-panel"><div class="panel-head compact"><div><p class="section-eyebrow">RECENT ACTIVITY</p><h2>最近事件 <span> / EVENTS</span></h2></div><button class="text-button" data-goto="events">全部 ↗</button></div><div id="event-list"></div><div class="activity-footer"><span>◷</span> 事件基于模拟状态生成</div></article></aside></section>
+        <footer><span><b>◈</b> SENTINEL <span> / MONITOR WHAT MATTERS</span></span><span>演示原型 · 不连接真实监控系统</span></footer>
+      </div>
+    </main>
+  </div>
+  <dialog id="detail-dialog" class="dialog"><div id="detail-content"></div></dialog>
+  <dialog id="add-dialog" class="dialog"><form id="add-form"><div class="dialog-head"><div><p class="section-eyebrow">DEMO ONLY</p><h2>添加模拟监控</h2><p>仅添加到当前浏览器会话，不连接目标或保存至真实配置。</p></div><button type="button" class="close-dialog" data-close="add-dialog" aria-label="关闭">×</button></div><label>监控名称<input name="name" required maxlength="60" placeholder="例如：订单服务"></label><label>监控领域<select name="domain"><option value="host">基础设施</option><option value="network">网络与服务</option><option value="database">数据库</option><option value="middleware">中间件</option><option value="cloud">云原生</option></select></label><label>示例地址<input name="target" required maxlength="100" placeholder="例如：orders.example.test"></label><div class="form-note">添加后将显示“未知”状态，不会执行网络请求。</div><div class="dialog-actions"><button type="button" class="button-secondary" data-close="add-dialog">取消</button><button type="submit" class="add-button">添加模拟对象</button></div></form></dialog>
+  <dialog id="command-dialog" class="dialog command-dialog" aria-label="快速查找"><div class="command-wrap"><div class="command-top"><span>⌕</span><input id="command-input" type="search" placeholder="查找监控对象或领域…" aria-label="快速查找"><button type="button" class="close-dialog" data-close="command-dialog" aria-label="关闭">×</button></div><p class="command-caption">模拟数据 · 按名称、地址或领域查找</p><div id="command-results" class="command-results"></div><div class="command-footer"><span>选择结果以查看详情</span><span>ESC 关闭</span></div></div></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="app.js?v=signal-workspace-3"></script>
+</body>
+</html>
