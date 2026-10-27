@@ -64,8 +64,8 @@
     document.querySelectorAll('.nav-item').forEach(button => { const selected = button.dataset.view === next; button.classList.toggle('active', selected); if (selected) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); });
     const label = domains[next]?.name || ({overview:'总览',all:'全部监控',events:'事件中心'})[next] || '总览';
     $('#breadcrumb').textContent = label;
-    $('#page-title').innerHTML = next === 'overview' ? '你的系统，<em>一目了然。</em>' : `${esc(label)}<em>，尽在掌握。</em>`;
-    $('#page-subtitle').textContent = next === 'events' ? '查看模拟事件和受影响的监控对象。' : '集中查看基础设施与服务健康状态，让每个变化都有迹可循。';
+    $('#page-title').textContent = next === 'overview' ? '监控总览' : label;
+    $('#page-subtitle').textContent = next === 'events' ? '查看模拟事件和受影响的监控对象。' : '从服务状态出发，快速找到需要处理的问题。';
     render();
     if (next !== 'overview') $('#list-title').scrollIntoView({
       behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
@@ -75,6 +75,11 @@
 
   function render() {
     const counts = Object.fromEntries(['ok','warn','fail','unknown'].map(s => [s, items.filter(item => item.status === s).length]));
+    $('#signal-total').textContent = items.length;
+    Object.entries(counts).forEach(([status, count]) => {
+      $(`#signal-${status}`).textContent = count;
+      $(`[data-segment="${status}"]`).style.flexGrow = count;
+    });
     $('#stat-total').textContent = items.length;
     $('#stat-total-note').textContent = counts.unknown ? `${counts.unknown} 项状态未知` : '覆盖 5 个监控领域';
     $('#stat-ok').textContent = counts.ok;
@@ -129,7 +134,12 @@
   document.addEventListener('click', event => {
     const button = event.target.closest('button, [data-detail]');
     if (!button) return;
-    if (button.dataset.view) setView(button.dataset.view);
+    if (button.dataset.signalFilter) {
+      setView('all');
+      const target = document.querySelector(`[data-filter="${button.dataset.signalFilter}"]`);
+      target.click();
+    }
+    else if (button.dataset.view) setView(button.dataset.view);
     else if (button.dataset.goto) setView(button.dataset.goto);
     else if (button.dataset.detail) detail(button.dataset.detail);
     else if (button.dataset.filter) { filter = button.dataset.filter; document.querySelectorAll('[data-filter]').forEach(el => { const selected = el === button; el.classList.toggle('selected', selected); el.setAttribute('aria-pressed', String(selected)); }); render(); }
