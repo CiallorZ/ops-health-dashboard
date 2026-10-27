@@ -6,6 +6,8 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-28
+
 ### Added
 
 - Add workspace navigation and clickable status summaries to the live dashboard, and rewrite the product introduction and setup guide.
@@ -22,6 +24,8 @@ All notable changes are documented here. The format follows
 
 ### Fixed
 
+- Default checks now target only the local resolver and loopback, and do not assume a particular server port.
+- Avoid treating unrelated HTTP 200 responses as a running Sentinel instance in the Windows launcher.
 - Show the actual background scheduler state on the overview, including manual mode and connection failures.
 - Normal shutdown keeps the data-directory lock until active sampling and
   HTTP handlers finish; idle HTTP connections have a 10-second timeout.

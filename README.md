@@ -2,7 +2,7 @@
 
 Sentinel 是一个自托管的轻量监控工作台，用于集中查看已配置目标的可用性、延迟、证书和本机磁盘容量。它从真实采样生成状态、历史与告警；适合希望先在本机或小规模环境中建立基础监控闭环的团队。
 
-**当前状态：开发中。** 已发布版本为 [v0.13.0](VERSION)；本分支还包含未发布的断言、本机磁盘和系统名称解析能力。请以 [变更记录](CHANGELOG.md) 和所在分支代码为准，发布包不包含尚未合入的开发分支功能。
+**当前状态：v0.14.0 发布候选。** 请以 [变更记录](CHANGELOG.md) 和所在分支代码为准。
 
 [快速开始](#快速开始) · [监控能力](#监控能力) · [配置](#配置监控) · [安全与运行边界](#安全与运行边界) · [架构](docs/ARCHITECTURE.md) · [路线图](ROADMAP.md)
 
@@ -14,8 +14,8 @@ Sentinel 是一个自托管的轻量监控工作台，用于集中查看已配�
 | `tcp` | 指定端口的连接与耗时 | TCP 端口可连通不代表应用功能正常 |
 | `tls` | TLS 握手、证书到期时间 | 证书结果来自实际握手，默认验证证书 |
 | `ping` | 系统 ICMP Echo 检查 | 需要系统 `ping` 命令；失败也可能是网络策略禁止 ICMP |
-| `disk` | 本机路径所在文件系统的容量 | 开发分支能力；无容量断言时为 `unknown` |
-| `dns` | 运行主机的系统名称解析与耗时 | 开发分支能力；可能命中 hosts 或缓存，并非指定 DNS 服务器检查 |
+| `disk` | 本机路径所在文件系统的容量 | 无容量断言时为 `unknown` |
+| `dns` | 运行主机的系统名称解析与耗时 | 可能命中 hosts 或缓存，并非指定 DNS 服务器检查 |
 
 一个检查可以配置域、分组、标签、超时、重试和声明式断言。结果在工作台中提供搜索、筛选、逐项状态时间线、最近变化和证据；后台调度可按配置周期采样。Webhook 支持状态变化通知、冷却、重试、签名与投递账本，维护窗口可抑制告警而继续采样。
 
@@ -23,7 +23,7 @@ Sentinel 是一个自托管的轻量监控工作台，用于集中查看已配�
 
 ## 快速开始
 
-需要 Python 3.11 或更高版本；运行时仅使用 Python 标准库。仓库默认的 `checks.json` 含公网示例目标，启动前请检查并替换成你有权访问的目标。以下示例只检查本机 HTTP 服务：
+需要 Python 3.11 或更高版本；运行时仅使用 Python 标准库。默认配置只检查本机；添加目标前请确认你有权访问。以下示例只检查本机 HTTP 服务：
 
 1. 新建 `checks.local.json`：
 
@@ -61,7 +61,7 @@ python server.py --version
 
 ### 其他运行方式
 
-- 已发布的 Windows 包：[下载 v0.13.0](docs/downloads/sentinel-0.13.0.zip) · [SHA256](docs/downloads/sentinel-0.13.0.zip.sha256)。包内能力以该发布版本为准。
+- Windows 源码便携候选包：[下载 v0.14.0](docs/downloads/sentinel-0.14.0.zip) · [SHA256](docs/downloads/sentinel-0.14.0.zip.sha256)。
 - 容器：审查根目录 `compose.yaml` 与 `checks.json` 后执行 `docker compose up --build -d`。默认端口映射为本机 `127.0.0.1:8080`。容器中的 `localhost` 和磁盘路径属于容器自身。
 - 本地示例与截图复现说明见 [测试文档](docs/TESTING.md) 和 `examples/`；不要将演示目标当成生产资产。
 
@@ -91,7 +91,7 @@ Linux 可使用 `/` 或明确授权的本机绝对路径。磁盘采集不读取
 ## 查看结果与接口
 
 - **工作台：**查看当前状态、检查详情、最近采样、状态变化、证书日历、维护窗口、通知与存储状态。
-- **历史与趋势：**逐项近期历史最多 40 轮，长期趋势按真实 UTC 日聚合；没有采样的日期不会补造。可用率是已记录样本中非 `fail` 的比例，不是时间加权 SLA。
+- **历史与趋势：**逐项近期历史最多 40 轮，长期趋势按真实 UTC 日聚合；没有采样的日期不会补造。可用率是已判定样本中 `ok` 与 `warn` 的比例，`unknown` 不参与分母；这不是时间加权 SLA。
 - **留存：**历史当前文件上限 4 MiB、最多 2 份归档、最多加载 5000 行；截断会显示在结果中。
 - **离线报告：**通过 `/api/report` 下载基于当前快照的 HTML 报告。
 
@@ -115,7 +115,7 @@ Linux 可使用 `/` 或明确授权的本机绝对路径。磁盘采集不读取
 
 ```powershell
 python -W error::ResourceWarning -m unittest discover -s tests -q
-python -m compileall -q monitor toolbox server.py tests
+python -m compileall -q monitor server.py tests
 node --check dashboard\app.js
 git diff --check
 ```

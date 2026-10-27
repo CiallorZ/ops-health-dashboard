@@ -6,6 +6,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
+$version = (Get-Content -LiteralPath (Join-Path $root "VERSION") -Raw).Trim()
 $logDir = Join-Path $root "data\logs"
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 $logPath = Join-Path $logDir "server.log"
@@ -27,7 +28,11 @@ if (-not (Test-Path -LiteralPath $pythonwPath)) {
 function Test-ExistingServer {
     try {
         $response = Invoke-WebRequest -UseBasicParsing -Uri "http://${HostName}:${Port}/api/health" -TimeoutSec 2
-        return $response.StatusCode -eq 200
+        $health = $response.Content | ConvertFrom-Json -ErrorAction Stop
+        return $response.StatusCode -eq 200 -and
+            $health.status -eq "ok" -and
+            $health.service -eq "ops-health-dashboard" -and
+            $health.version -eq $version
     } catch {
         return $false
     }
@@ -59,7 +64,11 @@ for ($attempt = 0; $attempt -lt 20; $attempt++) {
         Write-LauncherLog "server exited with code $($process.ExitCode)"
         exit 1
     }
-    if (Test-ExistingServer) {
+    # A different process may have won the port between the initial check
+    # and startup. Only report success if this child owns a listener.
+    $ownedListener = Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue |
+        Where-Object { $_.OwningProcess -eq $process.Id } | Select-Object -First 1
+    if ($ownedListener -and (Test-ExistingServer)) {
         Write-LauncherLog "server started pid=$($process.Id) port=$Port"
         exit 0
     }
