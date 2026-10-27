@@ -8,6 +8,10 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- Bounded system name resolution checks with observed addresses, latency,
+  assertion support and history. Uses the host resolver, including hosts and
+  cache; it does not test a particular DNS server or record type.
+
 - Bounded local disk capacity sampling for explicitly configured absolute
   paths, with actual byte/percentage metrics, assertions, history and
   Prometheus output. No capacity assertion means `unknown`, not healthy.

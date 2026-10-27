@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 
 from .maintenance import MaintenanceError, MaintenanceWindow, parse_maintenance_windows
 
-SUPPORTED_TYPES = {"http", "tcp", "tls", "ping", "disk"}
+SUPPORTED_TYPES = {"http", "tcp", "tls", "ping", "disk", "dns"}
 SUPPORTED_DOMAINS = {
     "network",
     "host",
@@ -413,6 +413,8 @@ def _parse_check(raw: Any, index: int) -> CheckConfig:
         raise ConfigError(f"{label}.verify_tls must be a boolean")
 
     port = _port(raw.get("port"), name=f"{label}.port")
+    if check_type == "dns" and port is not None:
+        raise ConfigError(f"{label}.port is not supported for system DNS checks")
     if check_type in {"tcp", "tls"} and port is None:
         port = 443 if check_type == "tls" else None
     if check_type == "tcp" and port is None:
