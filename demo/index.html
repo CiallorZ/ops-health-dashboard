@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>Sentinel · 运维监控工作台演示</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=light-glass-1">
 </head>
 <body>
   <div class="app">
@@ -46,6 +46,6 @@
   <dialog id="add-dialog" class="dialog"><form id="add-form"><div class="dialog-head"><div><p class="section-eyebrow">DEMO ONLY</p><h2>添加模拟监控</h2><p>仅添加到当前浏览器会话，不连接目标或保存至真实配置。</p></div><button type="button" class="close-dialog" data-close="add-dialog" aria-label="关闭">×</button></div><label>监控名称<input name="name" required maxlength="60" placeholder="例如：订单服务"></label><label>监控领域<select name="domain"><option value="host">基础设施</option><option value="network">网络与服务</option><option value="database">数据库</option><option value="middleware">中间件</option><option value="cloud">云原生</option></select></label><label>示例地址<input name="target" required maxlength="100" placeholder="例如：orders.example.test"></label><div class="form-note">添加后将显示“未知”状态，不会执行网络请求。</div><div class="dialog-actions"><button type="button" class="button-secondary" data-close="add-dialog">取消</button><button type="submit" class="add-button">添加模拟对象</button></div></form></dialog>
   <dialog id="command-dialog" class="dialog command-dialog" aria-label="快速查找"><div class="command-wrap"><div class="command-top"><span>⌕</span><input id="command-input" type="search" placeholder="查找监控对象或领域…" aria-label="快速查找"><button type="button" class="close-dialog" data-close="command-dialog" aria-label="关闭">×</button></div><p class="command-caption">模拟数据 · 按名称、地址或领域查找</p><div id="command-results" class="command-results"></div><div class="command-footer"><span>选择结果以查看详情</span><span>ESC 关闭</span></div></div></dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="app.js"></script>
+  <script src="app.js?v=light-glass-1"></script>
 </body>
 </html>

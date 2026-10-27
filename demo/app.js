@@ -109,7 +109,7 @@
     $('#event-list').innerHTML = alerts.length ? alerts.slice(0, 4).map(item => `<button class="event" data-detail="${esc(item.id)}" aria-label="查看 ${esc(item.name)} 事件详情"><span class="event-icon ${item.status === 'fail' ? 'red' : 'amber'}">${item.status === 'fail' ? '!' : '↗'}</span><span class="event-body"><strong>${esc(item.name)}</strong><span>${esc(item.note)}</span></span><time>${esc(item.last)}</time></button>`).join('') : '<div class="empty">暂无模拟事件</div>';
     const trend = trends[period];
     $('#health-chart').setAttribute('aria-label', `模拟 ${period} 服务健康趋势`);
-    $('#health-chart').innerHTML = `<svg viewBox="0 0 280 96" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="area" x1="0" x2="0" y1="0" y2="1"><stop stop-color="#23bbac" stop-opacity=".28"/><stop offset="1" stop-color="#23bbac" stop-opacity="0"/></linearGradient></defs><polygon points="${trend.points} 280,96 0,96" fill="url(#area)"/><polyline points="${trend.points}" fill="none" stroke="#20b9ad" stroke-width="2.5" vector-effect="non-scaling-stroke"/></svg>`;
+    $('#health-chart').innerHTML = `<svg viewBox="0 0 280 96" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="area" x1="0" x2="0" y1="0" y2="1"><stop stop-color="#6884f0" stop-opacity=".28"/><stop offset="1" stop-color="#6884f0" stop-opacity="0"/></linearGradient></defs><polygon points="${trend.points} 280,96 0,96" fill="url(#area)"/><polyline points="${trend.points}" fill="none" stroke="#637ef0" stroke-width="2.5" vector-effect="non-scaling-stroke"/></svg>`;
     $('#chart-labels').innerHTML = trend.labels.map(label => `<span>${label}</span>`).join('');
   }
 
